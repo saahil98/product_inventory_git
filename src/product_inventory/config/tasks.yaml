@@ -1,0 +1,67 @@
+list_products_task:
+  description: >
+    The customer has asked for the list of products available in the store. 
+    - For retrieving the product list, call the API with the following details: 
+    - Endpoint: `products` 
+    - Method: `GET` 
+    - Request Body: ''
+    - Extract only the product list from the JSON response returned by the API and present it as a JSON object.
+    - If the product list is empty, inform the customer that no products are currently available.
+  expected_output: >
+    A JSON object containing the products list with product id, product name, brand, model and price
+  agent: front_end_agent
+
+add_item_to_cart_task:
+  description: >
+    Analyze the customer's query: {query} to determine if they are requesting to add specific products with a given quantity to the cart.
+    - First, check if the requested products exist in the product list by calling the API tool:
+    - Endpoint: `products` 
+    - Method: `GET` 
+    - Request Body: ''
+    - If the API response contains the product list, create JSON output keys ProdID, Qty.
+    - If multiple products are requested, ensure each product ID is mapped correctly with the requested quantity in a structured JSON format.
+    - If a product is not found in the product list, respond to the customer with an appropriate message indicating that the item is unavailable.
+    - Add only the available items to the cart.
+    - Call the 'Add to Cart' API with the captured product details:
+    - Endpoint: `cart` 
+    - Method: `POST` 
+    - Request Body: JSON containing the product ID and quantity.
+  expected_output: >
+    A JSON response displaying the items added to the cart, structured as: 
+    [{ ProdID: <product_id>, Qty: <quantity> }], 
+    along with the API response from the API tool.
+  agent: front_end_agent
+
+
+search_product_task:
+  description: >
+    An user reached out with a query: {query}
+    please search the internet for the product's best price.
+    Use the 'Internet Search' tool to search for the product and find the best price.
+    pass the query
+    Return the three best price found for the product.
+  expected_output: >
+    A List of three sources with the best price for the product.
+  agent: product_search_agent
+
+image_search_task:
+  description: >
+    do an image search and find what kind of product is in the image
+    prompt = Extract the object name from the image. If the object matches any item from the list ['Refrigerator', 'Washing Machine', 'Camera'], use the corresponding name. Otherwise, label the object as 'Others'
+    image_path = {path}
+    - Use the image search tool with the given prompt and image path. 
+    - Extract and format the response from the tool. 
+  expected_output: >
+    A search result in JSON format with 'ProductName' as key
+  agent: image_search_agent
+
+customer_service_task:
+  description: >
+    A Customer / Manager Agent just reached out with a product-related inquiry: {query} 
+    Search through the provided PDF knowledge base to find the most accurate and relevant information.
+    Ensure that your response is strictly based on the documents and does not include any generated content.
+  expected_output: >
+    A precise and fact-based response to the customer's inquiry, strictly sourced from the PDF knowledge base. 
+    The response should clearly address the customer's question, referencing the relevant sections of the documents. 
+    Ensure the answer is complete, easy to understand, and maintains a professional yet friendly tone.
+  agent: customer_service_representative_agent

@@ -1,0 +1,23 @@
+[project]
+name = "product_inventory"
+version = "0.1.0"
+description = "product_inventory using crewAI"
+authors = [{ name = "Your Name", email = "you@example.com" }]
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "crewai[tools]>=0.105.0,<1.0.0"
+]
+
+[project.scripts]
+product_inventory = "product_inventory.main:run"
+run_crew = "product_inventory.main:run"
+train = "product_inventory.main:train"
+replay = "product_inventory.main:replay"
+test = "product_inventory.main:test"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.crewai]
+type = "crew"
