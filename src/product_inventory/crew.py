@@ -55,6 +55,7 @@ class ProductInventory():
 			verbose=True
 		) # type: ignore
 
+	#Priyanka's Agents
 	# Postgres DB agents
 
 	@agent
@@ -133,6 +134,7 @@ class ProductInventory():
 			config=self.tasks_config['customer_service_task'],
 		)# type: ignore
 
+	#Priyanka's Tasks
 	# Database tasks
 	
 	@task
