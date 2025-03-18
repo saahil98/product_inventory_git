@@ -1,6 +1,10 @@
 from crewai.tools import BaseTool
 from google import genai
 from googleapiclient.discovery import build
+from sqlalchemy import create_engine, text
+import re
+import json
+
 import os, requests
 import PIL.Image
 from dotenv import load_dotenv
@@ -53,3 +57,115 @@ class SearchImageTool(BaseTool):
             return response.text
         except Exception as e:
             raise Exception(f"An error occurred: {e}")
+
+
+class JsonReadTool(BaseTool):
+    name:str = "Json Read Tool"
+    description:str = "Reads the json file and returns the content"
+    def _run(self, file_path: str) -> str:
+        try:
+            # file_path = r"C:\Users\priyanka.b.chila\Documents\GenAIML\Downloads\product_details_data.json"
+            with open(file_path, 'r') as file:
+                data = file.read()
+                return json.loads(data)
+        except Exception as e:
+            return f"Error reading file: {str(e)}"
+
+class GetSchemaTool(BaseTool):
+    name:str = "Get Schema"
+    description:str = "Gets the database schema for a specified table"
+        
+
+    def _run(self, table_name: str, db_uri:str) -> str:
+        try:
+            # db_uri = 'postgresql://postgres:54321@127.0.0.1:5432/postgres'
+            engine = create_engine(db_uri)
+            with engine.connect() as conn:
+                schema_query = """
+                    SELECT column_name, data_type, character_maximum_length, is_nullable
+                    FROM information_schema.columns
+                    WHERE table_name = :table_name
+                    ORDER BY ordinal_position;
+                """
+                result = conn.execute(text(schema_query), {"table_name": table_name})
+                print(result, "schema result")
+                schema = result.fetchall()
+                
+                schema_info = []
+                for col in schema:
+                    col_info = f"{col[0]} {col[1]}"
+                    if col[2]:
+                        col_info += f"({col[2]})"
+                    col_info += f" {'NULL' if col[3] == 'YES' else 'NOT NULL'}"
+                    schema_info.append(col_info)
+                
+                return "\n".join(schema_info)
+        except Exception as e:
+            return f"Error getting schema: {str(e)}"
+
+
+class DatabaseTool(BaseTool):
+    name: str = "Database Tool"
+    description: str = "Executes SQL queries on the product_details table with input validation"
+    # args_schema: Type[BaseTool] = DatabaseToolInput
+
+    def _sanitize_query(self, query: str) -> str:
+        """Basic query sanitization"""
+        # Remove any multiple semicolons
+        query = re.sub(r';+', ';', query)
+        # Remove any trailing semicolon
+        query = query.strip(';')
+        return query
+
+    def _validate_query(self, query: str) -> bool:
+        """Basic query validation"""
+        query_lower = query.lower()
+        # Check for basic SQL injection patterns
+        dangerous_keywords = [
+            "drop table", "truncate table", "delete from",
+            "alter table"
+        ]
+        # Only allow SELECT statements for safety
+        if not query_lower.strip().startswith("select" or "insert" or "update"):
+            raise ValueError("Only SELECT queries are allowed")
+        
+        for keyword in dangerous_keywords:
+            if keyword in query_lower:
+                raise ValueError(f"Dangerous operation detected: {keyword}")
+        
+        return True
+
+ 
+    def _run(self, query: str, db_uri: str) -> dict:
+        """Execute the query and return results"""
+        try:
+            # Sanitize and validate the query
+            sanitized_query = self._sanitize_query(query)
+            # self._validate_query(sanitized_query)
+
+            # Create database connection using environment variables
+            engine = create_engine(db_uri)
+            
+            with engine.connect() as conn:
+                result = conn.execute(text(sanitized_query))
+                if 'insert' or 'update' in sanitized_query.lower():
+                    conn.commit()
+                    if 'insert' in sanitized_query.lower():
+                        message = "Data inserted successfully"
+                    
+                        return {"status": "success", "data": [], "message": message}
+                data = result.fetchall()
+                return {"status": "success", "data": list(data), "message": "Data retrieved successfully"}
+
+        except ValueError as ve:
+            return {
+                "status": "error",
+                "data": [],
+                "message": f"Validation error: {str(ve)}"
+            }
+        except Exception as e:
+            return {
+                "status": "error",
+                "data": [],
+                "message": f"Database operation error: {str(e)}"
+            }

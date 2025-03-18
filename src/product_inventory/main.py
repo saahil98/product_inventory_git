@@ -19,7 +19,11 @@ def run():
     """
     inputs = {
         'query': "LG 185 L 5 Star Inverter Direct-Cool Single Door Refrigerator",
-        'path': r"C:\Users\saahil.ali\OneDrive - Accenture\KT Documents\crewAI\image.jpg"
+        'path': r"C:\Users\saahil.ali\OneDrive - Accenture\KT Documents\crewAI\image.jpg",
+        "file_path": r"C:\Users\priyanka.b.chila\Documents\GenAIML\Downloads\product_details.json",
+        "database_connection":r"postgresql:postgres:54321//@localhost:5432/postgres",
+        "user_query": "Fetch the data from table",
+        "table": "product_details"
     }
     
     try:
