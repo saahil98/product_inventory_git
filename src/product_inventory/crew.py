@@ -1,8 +1,8 @@
 from crewai import Agent, Crew, Process, Task, LLM
 from crewai.project import CrewBase, agent, crew, task, before_kickoff, after_kickoff
 from crewai_tools import PDFSearchTool
-from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool
-# If you want to run a snippet of code before or after the crew starts, 
+from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
+	JsonReadTool, GetSchemaTool, DatabaseTool
 # you can use the @before_kickoff and @after_kickoff decorators
 # https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
 
@@ -54,13 +54,55 @@ class ProductInventory():
 			tools = [PDFSearchTool(pdf = r'C:\Users\saahil.ali\OneDrive - Accenture\KT Documents\crewAI\Productdetails.pdf')],
 			verbose=True
 		) # type: ignore
+
+	# Postgres DB agents
+
+	@agent
+	def read_data_agent(self) -> Agent:
+		return Agent(
+         config=self.agents_config['read_data_agent'],
+         verbose=True,
+         allow_delegation=False,
+         tool=[JsonReadTool()],
+         llm=LLM(model="azure/gpt-4o-mini-global", temperature= 0.7)
+         )
 	
+	@agent
+	def schema_analyzer(self) -> Agent:
+		return Agent(
+         config=self.agents_config['database_schema_analyzer'],
+         verbose=True,
+         allow_delegation=False,
+         tools=[GetSchemaTool()],
+         llm=LLM(model="azure/gpt-4o-mini-global", temperature= 0.7)
+         )
+    
+	@agent
+	def query_generator(self) -> Agent:
+		return Agent(
+         config=self.agents_config['database_query_generator'],
+         verbose=True,
+
+         allow_delegation=False,
+         llm=LLM(model="azure/gpt-4o-mini-global", temperature= 0.7)
+         )
+    
+	@agent
+	def query_executor(self) -> Agent:
+		return Agent(
+         config=self.agents_config['database_query_executor'],
+         verbose=True,
+         allow_delegation=False,
+         tools=[DatabaseTool()],
+         llm=LLM(model="azure/gpt-4o-mini-global", temperature= 0.7)
+         )
 
 
 	
 	# To learn more about structured task outputs, 
 	# task dependencies, and task callbacks, check out the documentation:
 	# https://docs.crewai.com/concepts/tasks#overview-of-a-task
+	
 	@task
 	def list_products_task(self) -> Task:
 		return Task(
@@ -91,6 +133,33 @@ class ProductInventory():
 			config=self.tasks_config['customer_service_task'],
 		)# type: ignore
 
+	# Database tasks
+	
+	@task
+	def read_data_task(self) -> Task:
+		return Task(
+         config=self.tasks_config['read_data_task'],
+         function_args={'file_path': '{file_path}'}
+         )
+    
+	@task
+	def schema_task(self) -> Task:
+		return Task(
+         config=self.tasks_config['schema_task']
+         )
+
+	@task
+	def query_generation(self) -> Task:
+		return Task(
+         config=self.tasks_config['query_generator_task']
+         )
+    
+	@task
+	def query_execution(self) -> Task:
+		return Task(
+         config=self.tasks_config['query_executor_task'],
+         func_args = {'query':'{query_generation.output}'}
+         )
 
 	@crew
 	def crew(self) -> Crew:

@@ -65,3 +65,63 @@ customer_service_task:
     The response should clearly address the customer's question, referencing the relevant sections of the documents. 
     Ensure the answer is complete, easy to understand, and maintains a professional yet friendly tone.
   agent: customer_service_representative_agent
+
+read_data_task:
+  description: >
+    Read the data from the json file , parse the json.
+    file path = {file_path}.
+  expected_output: >
+    Data from the json file {file_path} as a dictionary
+  agent: read_data_agent
+
+schema_task:
+  description: >
+    Connect to the given database {database_connection} get the database schema for  {table} and return the schema.
+    db_uri = {database_connection}
+    table_name = {table}
+  expected_output: >
+    Database schema
+  agent: schema_analyzer
+
+query_generator_task:
+  description: >
+    Generate a PostgreSQL query based on:
+    1. User request -  {user_query}
+    2. Target table - {table}
+    3. Use columns and values from json data to select the data or insert the data and to update the data
+    4. Database schema from schema task
+    
+    Requirements -
+    1. Generate a syntactically correct PostgreSQL query
+    2. Include proper table and column names
+    3. Don't consider transaction id from the data, ignore transid column for inserting
+    4. Add appropriate WHERE clauses if needed
+    5. Ensure the query is safe and follows best practices
+    
+    The query will be executed by the query executor task.
+  expected_output: >
+    A valid PostgreSQL query string
+  agent: query_generator
+
+query_executor_task:
+  description: >
+    Execute the provided Postgres SQL query following these steps:
+    db_uri = {database_connection}
+    query = {{query_generator_task.output}}
+    1. Review the query received from the query generator
+    2. Validate the query structure and safety
+    3. Execute the query using the database tool
+    4. Format and return the results in a clear, readable format
+    
+    Context -
+    - Generated Query -  {{query_generator_task.output}}
+    Important:
+    - Ensure the query is properly formatted before execution
+    - Handle any potential errors gracefully
+    - Return results in a structured format
+  expected_output: >
+    A dictionary containing:
+    1. The executed query
+    2. The query results
+    3. Any relevant execution metadata
+  agent: query_executor
