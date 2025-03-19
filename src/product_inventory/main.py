@@ -12,14 +12,18 @@ warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 # crew locally, so refrain from adding unnecessary logic into this file.
 # Replace with inputs you want to test with, it will automatically
 # interpolate any tasks and agents information
+import os
+from dotenv import load_dotenv
+
+
 
 def run():
     """
     Run the crew.
     """
     inputs = {
-        'query': "LG 185 L 5 Star Inverter Direct-Cool Single Door Refrigerator",
-        'path': r"C:\Users\saahil.ali\OneDrive - Accenture\KT Documents\crewAI\image.jpg",
+        'query': "show me the product list using front end agent",
+        'path': os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
         "file_path": r"C:\Users\priyanka.b.chila\Documents\GenAIML\Downloads\product_details.json",
         "database_connection":r"postgresql:postgres:54321//@localhost:5432/postgres",
         "user_query": "Fetch the data from table",

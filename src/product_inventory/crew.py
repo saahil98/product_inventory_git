@@ -3,8 +3,13 @@ from crewai.project import CrewBase, agent, crew, task, before_kickoff, after_ki
 from crewai_tools import PDFSearchTool
 from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
 	JsonReadTool, GetSchemaTool, DatabaseTool
+import os
+from dotenv import load_dotenv
 # you can use the @before_kickoff and @after_kickoff decorators
 # https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
+
+
+
 
 @CrewBase
 class ProductInventory():
@@ -17,13 +22,35 @@ class ProductInventory():
 	tasks_config = 'config/tasks.yaml'
 	# If you would like to add tools to your agents, you can learn more about it here:
 	# https://docs.crewai.com/concepts/agents#agent-tools
+	dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../.env'))
+	load_dotenv(dotenv_path=dotenv_path)
+	azure_llm = LLM(model=os.getenv("model"), 
+				temperature=0.7, 
+				base_url=os.getenv("AZURE_API_BASE"), 
+				api_version=os.getenv("AZURE_API_VERSION"), 
+				api_key=os.getenv("NEW_AZURE_API_KEY"), 
+				api_base=os.getenv("AZURE_API_BASE"))
+	# model=os.getenv("model")
+	# base_url=os.getenv("AZURE_API_BASE")
+	# api_version=os.getenv("AZURE_API_VERSION")
+	# api_key=os.getenv("NEW_AZURE_API_KEY")
+	# api_base=os.getenv("AZURE_API_BASE")
 
+	# print("CONFIG DETAILS: ",model, base_url, api_version, api_key, api_base)
+	
+	def manager_agent(self) -> Agent:
+		return Agent(
+			config=self.agents_config['manager_agent'],
+			llm=self.azure_llm,
+			verbose=True,
+			allow_delegation=True
+		)# type: ignore
 
 	@agent
 	def front_end_agent(self) -> Agent:
 		return Agent(
 			config=self.agents_config['front_end_agent'],
-			llm=LLM(model="azure/gpt-4o-mini-global"),
+			llm=self.azure_llm,
 			verbose=True,
 			tools=[ShoppingAPITool()]
 		)# type: ignore
@@ -32,7 +59,7 @@ class ProductInventory():
 	def product_search_agent(self) -> Agent:
 		return Agent(
 			config=self.agents_config['product_search_agent'],
-			llm=LLM(model="azure/gpt-4o-mini-global"),
+			llm=self.azure_llm,
 			verbose=True,
 			tools=[SearchWebTool()]
 		)# type: ignore
@@ -50,11 +77,13 @@ class ProductInventory():
 	def customer_service_representative_agent(self) -> Agent:
 		return Agent(
 			config=self.agents_config['customer_service_representative_agent'],
-			llm=LLM(model="azure/gpt-4o-mini-global"),
+			llm=self.azure_llm,
 			tools = [PDFSearchTool(pdf = r'C:\Users\saahil.ali\OneDrive - Accenture\KT Documents\crewAI\Productdetails.pdf')],
+			max_iter=3,
 			verbose=True
 		) # type: ignore
 
+	#Priyanka's Agents
 	# Postgres DB agents
 
 	@agent
@@ -64,8 +93,8 @@ class ProductInventory():
          verbose=True,
          allow_delegation=False,
          tool=[JsonReadTool()],
-         llm=LLM(model="azure/gpt-4o-mini-global", temperature= 0.7)
-         )
+         llm=self.azure_llm
+         )# type: ignore
 	
 	@agent
 	def schema_analyzer(self) -> Agent:
@@ -74,8 +103,8 @@ class ProductInventory():
          verbose=True,
          allow_delegation=False,
          tools=[GetSchemaTool()],
-         llm=LLM(model="azure/gpt-4o-mini-global", temperature= 0.7)
-         )
+         llm=self.azure_llm
+         )# type: ignore
     
 	@agent
 	def query_generator(self) -> Agent:
@@ -84,8 +113,8 @@ class ProductInventory():
          verbose=True,
 
          allow_delegation=False,
-         llm=LLM(model="azure/gpt-4o-mini-global", temperature= 0.7)
-         )
+         llm=self.azure_llm
+         )# type: ignore
     
 	@agent
 	def query_executor(self) -> Agent:
@@ -94,15 +123,20 @@ class ProductInventory():
          verbose=True,
          allow_delegation=False,
          tools=[DatabaseTool()],
-         llm=LLM(model="azure/gpt-4o-mini-global", temperature= 0.7)
-         )
+         llm=self.azure_llm
+         )# type: ignore
 
 
 	
 	# To learn more about structured task outputs, 
 	# task dependencies, and task callbacks, check out the documentation:
 	# https://docs.crewai.com/concepts/tasks#overview-of-a-task
-	
+	# @task
+	# def manager_task(self) -> Task:
+	# 	return Task(
+	# 		config=self.tasks_config['manager_agent_task'],
+	# 	)# type: ignore
+
 	@task
 	def list_products_task(self) -> Task:
 		return Task(
@@ -133,6 +167,7 @@ class ProductInventory():
 			config=self.tasks_config['customer_service_task'],
 		)# type: ignore
 
+	#Priyanka's Tasks
 	# Database tasks
 	
 	@task
@@ -170,9 +205,11 @@ class ProductInventory():
 		return Crew(
 			agents=self.agents, # Automatically created by the @agent decorator
 			tasks=self.tasks, # Automatically created by the @task decorator
-			process=Process.sequential,
+			manager_agent=self.manager_agent(),
+			# manager_llm= self.azure_llm,
+			# process=Process.sequential,
 			verbose=True,
-			# process=Process.hierarchical, # In case you wanna use that instead https://docs.crewai.com/how-to/Hierarchical/
+			process=Process.hierarchical # In case you wanna use that instead https://docs.crewai.com/how-to/Hierarchical/
 		)
 	
 	@before_kickoff
