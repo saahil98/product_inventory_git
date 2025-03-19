@@ -3,8 +3,10 @@ from crewai.project import CrewBase, agent, crew, task, before_kickoff, after_ki
 from crewai_tools import PDFSearchTool
 from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
 	JsonReadTool, GetSchemaTool, DatabaseTool
+import os
 # you can use the @before_kickoff and @after_kickoff decorators
 # https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
+
 
 @CrewBase
 class ProductInventory():
@@ -18,6 +20,14 @@ class ProductInventory():
 	# If you would like to add tools to your agents, you can learn more about it here:
 	# https://docs.crewai.com/concepts/agents#agent-tools
 
+
+	def manager_agent(self) -> Agent:
+		return Agent(
+			config=self.agents_config['manager_agent'],
+			llm=LLM(model="azure/gpt-4o-mini-global"),
+			verbose=True,
+			allow_delegation=True
+		)# type: ignore
 
 	@agent
 	def front_end_agent(self) -> Agent:
@@ -172,9 +182,10 @@ class ProductInventory():
 		return Crew(
 			agents=self.agents, # Automatically created by the @agent decorator
 			tasks=self.tasks, # Automatically created by the @task decorator
-			process=Process.sequential,
+			manager_agent=self.manager_agent(),
+			# process=Process.sequential,
 			verbose=True,
-			# process=Process.hierarchical, # In case you wanna use that instead https://docs.crewai.com/how-to/Hierarchical/
+			process=Process.hierarchical # In case you wanna use that instead https://docs.crewai.com/how-to/Hierarchical/
 		)
 	
 	@before_kickoff

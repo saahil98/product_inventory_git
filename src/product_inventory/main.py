@@ -13,13 +13,17 @@ warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 # Replace with inputs you want to test with, it will automatically
 # interpolate any tasks and agents information
 import os
+from dotenv import load_dotenv
+
+dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../.env'))
+load_dotenv(dotenv_path=dotenv_path)
 
 def run():
     """
     Run the crew.
     """
     inputs = {
-        'query': "LG 185 L 5 Star Inverter Direct-Cool Single Door Refrigerator",
+        'query': "show me the product list",
         'path': os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
         "file_path": r"C:\Users\priyanka.b.chila\Documents\GenAIML\Downloads\product_details.json",
         "database_connection":r"postgresql:postgres:54321//@localhost:5432/postgres",
