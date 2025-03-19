@@ -15,15 +15,14 @@ warnings.filterwarnings("ignore", category=SyntaxWarning, module="pysbd")
 import os
 from dotenv import load_dotenv
 
-dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../.env'))
-load_dotenv(dotenv_path=dotenv_path)
+
 
 def run():
     """
     Run the crew.
     """
     inputs = {
-        'query': "show me the product list",
+        'query': "show me the product list using front end agent",
         'path': os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
         "file_path": r"C:\Users\priyanka.b.chila\Documents\GenAIML\Downloads\product_details.json",
         "database_connection":r"postgresql:postgres:54321//@localhost:5432/postgres",
