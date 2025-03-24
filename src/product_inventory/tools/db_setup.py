@@ -37,7 +37,7 @@ def create_product_table():
         # Load data from Excel only if table is empty
         if count == 0:
             try:
-                df = pd.read_excel(r"C:\Users\priyanka.b.chila\Downloads\product_details.xlsx", sheet_name="Sheet1")
+                df = pd.read_excel(r"C:\Users\saahil.ali\OneDrive - Accenture\KT Documents\crewAI\product_inventory_git\Product_details.xlsx", sheet_name="Sheet1")
                 print(df)
                 # Create SQLAlchemy engine for pandas to_sql
                 engine = create_engine('postgresql://postgres:54321@127.0.0.1:5432/postgres')
@@ -319,3 +319,8 @@ conditions = {
 }
 # result = update_data(update_dict=update_values, condition_dict=conditions)
 # print(result)
+
+
+if __name__ == '__main__':
+    create_db()
+    

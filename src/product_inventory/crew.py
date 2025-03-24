@@ -52,7 +52,8 @@ class ProductInventory():
 			config=self.agents_config['front_end_agent'],
 			llm=self.azure_llm,
 			verbose=True,
-			tools=[ShoppingAPITool()]
+			tools=[ShoppingAPITool()],
+			allow_delegation=False
 		)# type: ignore
 
 	@agent
@@ -61,7 +62,8 @@ class ProductInventory():
 			config=self.agents_config['product_search_agent'],
 			llm=self.azure_llm,
 			verbose=True,
-			tools=[SearchWebTool()]
+			tools=[SearchWebTool()],
+			allow_delegation=False
 		)# type: ignore
 	
 	@agent
@@ -70,7 +72,8 @@ class ProductInventory():
 			config=self.agents_config['image_search_agent'],
 			llm=LLM(model="gemini/gemini-1.5-pro-latest",temperature=0.7),
 			verbose=True,
-			tools=[SearchImageTool()]
+			tools=[SearchImageTool()],
+			allow_delegation=False
 		)# type: ignore
 
 	@agent
@@ -80,7 +83,8 @@ class ProductInventory():
 			llm=self.azure_llm,
 			tools = [PDFSearchTool(pdf = r'C:\Users\saahil.ali\OneDrive - Accenture\KT Documents\crewAI\Productdetails.pdf')],
 			max_iter=3,
-			verbose=True
+			verbose=True,
+			allow_delegation=False
 		) # type: ignore
 
 	#Priyanka's Agents
@@ -93,7 +97,7 @@ class ProductInventory():
          verbose=True,
          allow_delegation=False,
          tool=[JsonReadTool()],
-         llm=self.azure_llm
+         llm=self.azure_llm,
          )# type: ignore
 	
 	@agent
@@ -111,7 +115,6 @@ class ProductInventory():
 		return Agent(
          config=self.agents_config['database_query_generator'],
          verbose=True,
-
          allow_delegation=False,
          llm=self.azure_llm
          )# type: ignore
@@ -131,11 +134,11 @@ class ProductInventory():
 	# To learn more about structured task outputs, 
 	# task dependencies, and task callbacks, check out the documentation:
 	# https://docs.crewai.com/concepts/tasks#overview-of-a-task
-	# @task
-	# def manager_task(self) -> Task:
-	# 	return Task(
-	# 		config=self.tasks_config['manager_agent_task'],
-	# 	)# type: ignore
+	@task
+	def manager_task(self) -> Task:
+		return Task(
+			config=self.tasks_config['manager_agent_task'],
+		)# type: ignore
 
 	@task
 	def list_products_task(self) -> Task:
