@@ -1,14 +1,14 @@
 from crewai import Agent, Crew, Process, Task, LLM
 from crewai.project import CrewBase, agent, crew, task, before_kickoff, after_kickoff
 from crewai_tools import PDFSearchTool
+from pydantic import BaseModel
 from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
 	JsonReadTool, GetSchemaTool, DatabaseTool
 import os
+from pydantic_model import MeetingPlan
 from dotenv import load_dotenv
 # you can use the @before_kickoff and @after_kickoff decorators
 # https://docs.crewai.com/concepts/crews#example-crew-class-with-decorators
-
-
 
 
 @CrewBase
@@ -37,13 +37,15 @@ class ProductInventory():
 	# api_base=os.getenv("AZURE_API_BASE")
 
 	# print("CONFIG DETAILS: ",model, base_url, api_version, api_key, api_base)
-	
+	@agent
 	def manager_agent(self) -> Agent:
 		return Agent(
 			config=self.agents_config['manager_agent'],
 			llm=self.azure_llm,
-			verbose=True,
-			allow_delegation=True
+			allow_delegation=False,
+			max_iter=3,
+			max_execution_time=40,
+			verbose=True
 		)# type: ignore
 
 	@agent
@@ -77,9 +79,9 @@ class ProductInventory():
 		)# type: ignore
 
 	@agent
-	def customer_service_representative_agent(self) -> Agent:
+	def pdf_search_agent(self) -> Agent:
 		return Agent(
-			config=self.agents_config['customer_service_representative_agent'],
+			config=self.agents_config['pdf_search_agent'],
 			llm=self.azure_llm,
 			tools = [PDFSearchTool(pdf = r'C:\Users\saahil.ali\OneDrive - Accenture\KT Documents\crewAI\Productdetails.pdf')],
 			max_iter=3,
@@ -138,6 +140,7 @@ class ProductInventory():
 	def manager_task(self) -> Task:
 		return Task(
 			config=self.tasks_config['manager_agent_task'],
+			output_pydantic=MeetingPlan,
 		)# type: ignore
 
 	@task
@@ -165,9 +168,9 @@ class ProductInventory():
 		)# type: ignore
 	
 	@task
-	def customer_service_task(self) -> Task:
+	def pdf_search_task(self) -> Task:
 		return Task(
-			config=self.tasks_config['customer_service_task'],
+			config=self.tasks_config['pdf_search_task'],
 		)# type: ignore
 
 	#Priyanka's Tasks
@@ -199,28 +202,28 @@ class ProductInventory():
          func_args = {'query':'{query_generation.output}'}
          )
 
-	@crew
-	def crew(self) -> Crew:
-		"""Creates the ProductInventory crew"""
-		# To learn how to add knowledge sources to your crew, check out the documentation:
-		# https://docs.crewai.com/concepts/knowledge#what-is-knowledge
+	# @crew
+	# def crew(self) -> Crew:
+	# 	"""Creates the ProductInventory crew"""
+	# 	# To learn how to add knowledge sources to your crew, check out the documentation:
+	# 	# https://docs.crewai.com/concepts/knowledge#what-is-knowledge
 
-		return Crew(
-			agents=self.agents, # Automatically created by the @agent decorator
-			tasks=self.tasks, # Automatically created by the @task decorator
-			manager_agent=self.manager_agent(),
-			# manager_llm= self.azure_llm,
-			# process=Process.sequential,
-			verbose=True,
-			process=Process.hierarchical # In case you wanna use that instead https://docs.crewai.com/how-to/Hierarchical/
-		)
+	# 	return Crew(
+	# 		agents=self.agents, # Automatically created by the @agent decorator
+	# 		tasks=self.tasks, # Automatically created by the @task decorator
+	# 		manager_agent=self.manager_agent(),
+	# 		# manager_llm= self.azure_llm,
+	# 		# process=Process.sequential,
+	# 		verbose=True,
+	# 		process=Process.hierarchical # In case you wanna use that instead https://docs.crewai.com/how-to/Hierarchical/
+	# 	)
 	
-	@before_kickoff
-	def before_kickoff_function(self, inputs):
-		print(f"Before kickoff function with inputs: {inputs}")
-		return inputs # You can return the inputs or modify them as needed
+	# @before_kickoff
+	# def before_kickoff_function(self, inputs):
+	# 	print(f"Before kickoff function with inputs: {inputs}")
+	# 	return inputs # You can return the inputs or modify them as needed
 
-	@after_kickoff
-	def after_kickoff_function(self, result):
-		print(f"After kickoff function with result: {result}")
-		return result # You can return the result or modify it as needed
+	# @after_kickoff
+	# def after_kickoff_function(self, result):
+	# 	print(f"After kickoff function with result: {result}")
+	# 	return result # You can return the result or modify it as needed
