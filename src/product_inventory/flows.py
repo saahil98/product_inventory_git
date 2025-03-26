@@ -157,6 +157,7 @@ def image_search_flow(question: str, **kwargs) -> str:
                 - Extract and format the response from the tool.
     """,
         expected_output="A list of search results based on the image provided.",
+        agent=agent
     )
     opinion = task.execute_sync()
     return opinion.raw
@@ -425,3 +426,6 @@ if __name__ == '__main__':
     )
     print(f"\n[🤖 Final Answer]:\n{result}")
     print(f"\n[🤖 Flow State]:\n{flow.state}\n")
+
+
+    
