@@ -189,9 +189,10 @@ def pdf_search_flow(question: str, **kwargs) -> str:
 # Added db agents
 
 def read_data_agent_flow(question: str, **kwargs) -> str:
+    json_file_path = kwargs.get("json_path")
     agent = Agent(
     role="Data Reading Specialist",
-    goal=f"Process requests for reading data from JSON files as specified in (user_query).",
+    goal=f"Process requests for reading data from JSON files as specified in {json_file_path}.",
     backstory="""Focused on extracting and presenting data, this agent uses JSONSearchTool
                 to effectively read and parse JSON file data.""",
     llm=azure_llm,
@@ -213,6 +214,7 @@ def read_data_agent_flow(question: str, **kwargs) -> str:
     return opinion.raw
 
 def schema_analyze_flow(question: str, **kwargs) -> str:
+    db_connection = kwargs.get("database_connection")
     schema_analyzer = Agent(
     role='Schema Analyzer',
     goal='Get database schema',
@@ -227,7 +229,7 @@ def schema_analyze_flow(question: str, **kwargs) -> str:
     
     task =Task(
     description=f"""
-    Connect to the given database get the database schema and return the schema.
+    Connect to the given database get the database schema and return the schema.{db_connection}
     """,
     expected_output="Database schema",
     agent=schema_analyzer
@@ -266,11 +268,15 @@ def query_generator_flow(question: str, **kwargs) -> str:
     """,
     expected_output="A valid PostgreSQL query string",
     agent=agent
-        )
+
+    )
     opinion = task.execute_sync()
     return opinion.raw
 
 def query_executor_flow(question: str, **kwargs) -> str:
+    last_agent_output = kwargs.get("last_agent_output")
+    #for debugging 
+    print(f"last_agent_output: {last_agent_output}")
     agent = Agent(
     role='Query Executor',
     goal='Execute the provided Postgres SQL query accurately and return results',
@@ -308,7 +314,7 @@ def query_executor_flow(question: str, **kwargs) -> str:
    
     tools=[DatabaseTool()],
     agent=agent,
-    function_args={'query': query_generator_task.output}
+    function_args={'query': last_agent_output}
     )
     opinion = task.execute_sync()
     return opinion.raw
@@ -338,10 +344,10 @@ def manager(team: str, query: str) -> List[str]:
                 If the query is about listing the products then choose specialist product_list_flow 
                 If the query is about adding the product to the cart then choose specialist adding_to_cart_flow 
                 If the query is about searching the product on the internet then choose specialist web_search_flow 
-                If the query is about searching the product image then choose specialist image_search_agent 
-                If the query is about customer service then choose specialist customer_service_representative_agent 
-                If the query is about fetching the data from database or inserting or updating the data 
-                then choose this series of specialist read data agent, schema analyzer, database quey generator and database query executor 
+                If the query is about searching the product image then choose specialist image_search_flow
+                If the query is about customer service then choose specialist pdf_search_flow
+                If the query is about fetching the data from database or inserting or updating the data or billing
+                then choose this series of specialist [read_data_agent_flow, schema_analyze_flow, query_generator_flow, query_executor_flow] 
                 Exclude experts who are not relevant. If no specialist is needed, return an empty list.
                 Team: {team},  Query: {query}
                     """,
@@ -391,9 +397,10 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
                     **{
                         "image_path": self.state.image_path,
                         "pdf_path": self.state.pdf_path,
-                        "file_path": self.state.file_path,
+                        "json_path": self.state.json_path,
                         "database_connection": self.state.database_connection,
-                        "table": self.state.table
+                        "table": self.state.table,
+                        "last_agent_output": opinions[-1] if opinions else None
                     }
                 )
                 opinions.append(f"{specialist} stated: {opinion}")
@@ -411,7 +418,7 @@ if __name__ == '__main__':
         "query": question,
         "image_path": os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
         "pdf_path": "",
-        "file_path": "",
+        "json_path": os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json'),
         "database_connection":"",
         "table": ""
         }
