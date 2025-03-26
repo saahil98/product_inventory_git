@@ -1,7 +1,13 @@
-{
-    "billnumber": "123456789",
+[{
     "productid": "Refrigerator1234",
     "productmodelnumber": "123456",
     "productprice": "50000",
     "productquantity": "1"
-  }
+},
+{
+  "productid": "camera",
+  "productmodelnumber": "123456",
+  "productprice": "50000",
+  "productquantity": "1"
+}
+]

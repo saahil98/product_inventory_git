@@ -1,13 +1,14 @@
 from crewai import Agent, Task
 from crewai.flow.flow import Flow, listen, start
 from typing import cast, List
+import os
 from crewai_tools import PDFSearchTool
 from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
 	JsonReadTool, GetSchemaTool, DatabaseTool
-from pydantic_model import MeetingPlan, CustomerServiceState
-from llm import azure_llm
+from pydantic_model import MeetingPlan, CustomerServiceState, Cart
+from llm import azure_llm, gemini_llm
 
-def product_list_flow(question: str) -> str:
+def product_list_flow(question: str, **kwargs) -> str:
     agent = Agent(
         role="Customer Receptionist",
         goal=f"""You are a front end agent you are having two tasks 
@@ -40,12 +41,13 @@ def product_list_flow(question: str) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def adding_to_cart_flow(question: str) -> str:
+def adding_to_cart_flow(question: str, **kwargs) -> str:
     agent = Agent(
-        role="Customer Receptionist",
-        goal=f"""You are a front end agent you are having two tasks 
-                1. List the products - List Products Task 
-                2. Add the product to the cart - Add Item to Cart Task 
+        role="Cart Addition Receptionist",
+        goal=f"""You are a Cart addition agent you are having three tasks 
+                1. List the products - using api tool 
+                2. Add the product to the cart - usin api tool
+                3. Generate an output .json file under '/data' folder 
                 based on the user query {question} execute ONLY the appropriate task 
                 and give the output. 
                 Any irrelevant query apart from the above mentioned crew task do not run any task under you.""",
@@ -73,16 +75,29 @@ def adding_to_cart_flow(question: str) -> str:
     - Call the 'Add to Cart' API with the captured product details: 
     - Endpoint: `cart` 
     - Method: `POST` 
-    - Request Body: JSON containing the product ID and quantity.""",
-    expected_output="""A JSON response displaying the items added to the cart, structured as: 
-    [{ ProdID: <product_id>, Qty: <quantity> }], 
+    - Request Body: JSON containing the product ID and quantity.
+    - Extract the items added to the cart from the API response and structure them as a JSON object.
+    - Save the output JSON file under the '/data' folder with the name 'cart_output.json'.
+    """,
+    expected_output="""A JSON file under folder '/data' displaying the items added to the cart, structured as: 
+    [
+        {
+            "productid": "<product_id>",
+            "productmodelnumber": "",  
+            "productprice": "",
+            "productquantity": "<quantity>"
+        },
+        ...
+    ]
     along with the API response from the API tool.""",
-    agent=agent
+    agent=agent,
+    output_pydantic= Cart,
+    output_file=os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json')
     )
     opinion = task.execute_sync()
     return opinion.raw
 
-def web_search_flow(question: str) -> str:
+def web_search_flow(question: str, **kwargs) -> str:
     agent = Agent(
         role="Product Search Agent",
         goal=f"""
@@ -117,15 +132,198 @@ def web_search_flow(question: str) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
+def image_search_flow(question: str, **kwargs) -> str:
+    image_path = kwargs.get("image_path")
+    agent = Agent(
+        role="Product Image Search Assistant",
+        goal=f"""You are a specialized agent capable of performing image-based product searches.
+            Given an image and a prompt from task description, use the image search tool to identify the product
+            and return the search results to the user.
+            The tool accepts two parameters {question} and {image_path}""",
+        backstory="""You are an expert in image-based product retrieval, leveraging AI-powered search tools to find products efficiently.""",
+        allow_delegation=False,
+        max_iter=3,
+        max_execution_time=40,
+        verbose=True,
+        llm= gemini_llm,
+        tools=[SearchImageTool()],
+    )
+    task = Task(
+        description=f"""
+                do an image search and find what kind of product is in the image
+                prompt = Extract the object name from the image. If the object matches any item from the list ['Refrigerator', 'Washing Machine', 'Camera'], use the corresponding name. Otherwise, label the object as 'Others'
+                image_path = {image_path}
+                - Use the image search tool with the given prompt and image path. 
+                - Extract and format the response from the tool.
+    """,
+        expected_output="A list of search results based on the image provided.",
+    )
+    opinion = task.execute_sync()
+    return opinion.raw
+
+def pdf_search_flow(question: str, **kwargs) -> str:
+    agent = Agent(
+        role="PDF Search Specialist",
+        goal=f"Search for information in the PDF document as per the user query: {question}",
+        backstory="""You are a PDF search specialist who can extract information from PDF documents. 
+                    You use the PDF search tool to find relevant data based on the user query.""",
+        llm=azure_llm,
+        allow_delegation=False,
+        max_iter=3,
+        max_execution_time=40,
+        verbose=True,
+        tools=[PDFSearchTool(pdf=kwargs.get("pdf_path"))],
+    )
+    task = Task(
+        description=f"""
+    Search for the information in the PDF document as per the user query: {question}
+    - Use the PDF search tool to find the relevant data in the PDF document.
+    - Extract and format the response from the tool.
+    """,
+    expected_output="The extracted information from the PDF document based on the user query.",
+    agent=agent
+    )
+    opinion = task.execute_sync()
+    return opinion.raw
+
+# Added db agents
+
+def read_data_agent_flow(question: str, **kwargs) -> str:
+    agent = Agent(
+    role="Data Reading Specialist",
+    goal=f"Process requests for reading data from JSON files as specified in (user_query).",
+    backstory="""Focused on extracting and presenting data, this agent uses JSONSearchTool
+                to effectively read and parse JSON file data.""",
+    llm=azure_llm,
+    allow_delegation=False,
+    max_iter=3,
+    max_execution_time=40,
+    verbose=True,
+    tools=[JsonReadTool()],
+    )
+
+    task = Task(
+    description=f"""
+    Connect to the given database get the database schema and return the schema.
+    """,
+    expected_output="Database schema",
+    agent=agent
+    )
+    opinion = task.execute_sync()
+    return opinion.raw
+
+def schema_analyze_flow(question: str, **kwargs) -> str:
+    schema_analyzer = Agent(
+    role='Schema Analyzer',
+    goal='Get database schema',
+    backstory="""You are an expert database developer who understands PostgreSQL schemas 
+                    and data structures. """,
+    llm=azure_llm,
+    allow_delegation=False,
+    max_iter=3,
+    max_execution_time=40,
+    tools=[GetSchemaTool()]
+    )
+    
+    task =Task(
+    description=f"""
+    Connect to the given database get the database schema and return the schema.
+    """,
+    expected_output="Database schema",
+    agent=schema_analyzer
+        )    
+    opinion = task.execute_sync()
+    return opinion.raw
+
+def query_generator_flow(question: str, **kwargs) -> str:
+    agent = Agent(
+    role='Query Generator',
+    goal='Generate Postgres SQL queries to insert, fetch or update data based on user query, database schema and table',
+    backstory="""You are an expert at generating Postgres SQL queries based on user query and database schema.
+    You validate queries before execution and ensure safe database operations.""",
+    # tools=[tool],
+    max_iter=3,
+    max_execution_time=40,
+    llm=azure_llm
+        )
+    
+    task = Task(
+    description="""
+    Generate a PostgreSQL query based on:
+    1. User request: {query}
+    
+    2. Target table: {table}
+    3. Database schema from schema task 
+    
+    Requirements:
+    1. Generate a syntactically correct PostgreSQL query
+    2. Include proper table and column names
+    3. Don't consider transaction id from the data, ignore transid column for inserting
+    3. Add appropriate WHERE clauses if needed
+    4. Ensure the query is safe and follows best practices
+    
+    The query will be executed by the query executor task.
+    """,
+    expected_output="A valid PostgreSQL query string",
+    agent=agent
+        )
+    opinion = task.execute_sync()
+    return opinion.raw
+
+def query_executor_flow(question: str, **kwargs) -> str:
+    agent = Agent(
+    role='Query Executor',
+    goal='Execute the provided Postgres SQL query accurately and return results',
+    backstory="""You are an expert database query executor. You take Postgres SQL queries, 
+    execute them safely, and return well-formatted results. You carefully validate 
+    queries before execution and ensure proper error handling.""",
+    tools=[DatabaseTool()],
+    llm=azure_llm,
+    max_iter=3,
+    max_execution_time=40
+    )
+    task = Task(
+    description="""
+    Execute the provided Postgres SQL query following these steps:
+    query = {{query_generator_task.output}}
+    1. Review the query received from the query generator
+    2. Validate the query structure and safety
+    3. Execute the query using the database tool
+    4. Format and return the results in a clear, readable format
+    
+    Context:
+
+    - Generated Query: {{query_generator_task.output}}
+    
+    Important:
+    - Ensure the query is properly formatted before execution
+    - Handle any potential errors gracefully
+    - Return results in a structured format
+    """,
+    expected_output="""A dictionary containing:
+    1. The executed query
+    2. The query results
+    3. Any relevant execution metadata
+    """,
+   
+    tools=[DatabaseTool()],
+    agent=agent,
+    function_args={'query': query_generator_task.output}
+    )
+    opinion = task.execute_sync()
+    return opinion.raw
+
 def manager(team: str, query: str) -> List[str]:
     agent = Agent(
         role="Customer Support Manager",
-        goal="Select the best team members for customer "
-            "support meetings to resolve customer issues efficiently.",
-        backstory="You are an experienced customer support "
-                "manager with a proven track record of leading "
-                "high-performing support teams and resolving "
-                "complex customer issues effectively.",
+        goal=f"""
+            Select the best specialist for customer's query: '{query}' 
+            support meetings to resolve customer issues efficiently.
+            """,
+        backstory="""You are an experienced customer support 
+                manager with a proven track record of leading 
+                high-performing support teams and resolving 
+                complex customer issues effectively.""",
         llm=azure_llm,
         allow_delegation=False,
         max_iter=3,
@@ -133,15 +331,19 @@ def manager(team: str, query: str) -> List[str]:
         verbose=True
     )
     task = Task(
-        description=f"""Analyze the customer's ticket and determine 
-                        which specialists from your team should attend 
-                        a meeting to address the issue. Provide only a 
-                        list of names. 
-                        If the query is about listing the products or adding to cart then delegate the task to product_list_flow or adding_to_cart_flow 
-                        If the query is about searching the product on the internet then delegate the task to web_search_flow
-                        Exclude experts who are not 
-                        relevant. If no specialist is needed, return an empty list.
-                        Team: {team},  Query: {query}
+        description=f"""
+                Analyze the customer's Query : ' {query} ' and determine 
+                which specialists from your team should attend 
+                a meeting to address the issue. Provide only list of names. 
+                If the query is about listing the products then choose specialist product_list_flow 
+                If the query is about adding the product to the cart then choose specialist adding_to_cart_flow 
+                If the query is about searching the product on the internet then choose specialist web_search_flow 
+                If the query is about searching the product image then choose specialist image_search_agent 
+                If the query is about customer service then choose specialist customer_service_representative_agent 
+                If the query is about fetching the data from database or inserting or updating the data 
+                then choose this series of specialist read data agent, schema analyzer, database quey generator and database query executor 
+                Exclude experts who are not relevant. If no specialist is needed, return an empty list.
+                Team: {team},  Query: {query}
                     """,
         expected_output="List of names of relevant experts from "
                         "the team or an empty list if no expert is needed.",
@@ -160,7 +362,13 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
     available_specialists = {
         'product_list_flow': product_list_flow,
         'adding_to_cart_flow': adding_to_cart_flow,
-        'web_search_flow': web_search_flow
+        'web_search_flow': web_search_flow,
+        'image_search_flow': image_search_flow,
+        'pdf_search_flow': pdf_search_flow,
+        'read_data_agent_flow': read_data_agent_flow,
+        'schema_analyze_flow': schema_analyze_flow,
+        'query_generator_flow': query_generator_flow,
+        'query_executor_flow': query_executor_flow
     }
 
     @start()
@@ -179,7 +387,14 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
         for specialist in self.state.chosen_specialists:
             try:
                 opinion = self.available_specialists[specialist](
-                    self.state.query
+                    self.state.query,
+                    **{
+                        "image_path": self.state.image_path,
+                        "pdf_path": self.state.pdf_path,
+                        "file_path": self.state.file_path,
+                        "database_connection": self.state.database_connection,
+                        "table": self.state.table
+                    }
                 )
                 opinions.append(f"{specialist} stated: {opinion}")
             except:
@@ -193,7 +408,12 @@ if __name__ == '__main__':
     flow = CustomerServiceFlow()
     result = flow.kickoff(
         inputs = {
-        'query': question,
+        "query": question,
+        "image_path": os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
+        "pdf_path": "",
+        "file_path": "",
+        "database_connection":"",
+        "table": ""
         }
     )
     print(f"\n[🤖 Final Answer]:\n{result}")
