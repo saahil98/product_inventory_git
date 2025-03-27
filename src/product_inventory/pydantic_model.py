@@ -11,7 +11,8 @@ class CustomerServiceState(BaseModel):
     pdf_path: str = ""
     json_path: str = ""
     database_connection: str = ""
-    table: str = ""
+    table: str = "",
+    sql_query: str = ""
     chosen_specialists: List[str] = []
     opinions: List[str] = []
     response: str = ""

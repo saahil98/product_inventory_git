@@ -206,9 +206,9 @@ def read_data_agent_flow(question: str, **kwargs) -> str:
 
     task = Task(
     description=f"""
-    Connect to the given database get the database schema and return the schema.
+    USe JsonReaderTool to Read the {json_file_path} file and extract the data.
     """,
-    expected_output="Database schema",
+    expected_output="Json data from the json file",
     agent=agent
     )
     opinion = task.execute_sync()
@@ -216,6 +216,7 @@ def read_data_agent_flow(question: str, **kwargs) -> str:
 
 def schema_analyze_flow(question: str, **kwargs) -> str:
     db_connection = kwargs.get("database_connection")
+    table=kwargs.get("table")
     schema_analyzer = Agent(
     role='Schema Analyzer',
     goal='Get database schema',
@@ -223,13 +224,15 @@ def schema_analyze_flow(question: str, **kwargs) -> str:
                     and data structures. """,
     llm=azure_llm,
     allow_delegation=False,
-    max_iter=3,
+    max_iter=5,
+    verbose=True,
     max_execution_time=40,
     tools=[GetSchemaTool()]
     )
     
     task =Task(
     description=f"""
+    Connect to the  given {db_connection} database and {table} table, get the database schema and return the schema.
     Connect to the given database get the database schema and return the schema.{db_connection}
     """,
     expected_output="Database schema",
@@ -238,32 +241,44 @@ def schema_analyze_flow(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def query_generator_flow(question: str, **kwargs) -> str:
+def query_generator_flow(question: str, **kwargs) -> str: 
+    last_agent_output = kwargs.get("last_agent_output")
+    json_data = last_agent_output[-2]
+    json_data=json_data.split(" ")[2:]
+    json_data = " ".join(json_data)
+    print(json_data, "json_data after splitting")
+    query =question
+    table = kwargs.get("table")
     agent = Agent(
     role='Query Generator',
-    goal='Generate Postgres SQL queries to insert, fetch or update data based on user query, database schema and table',
+    goal=f'Generate Postgres SQL queries to insert, fetch or update data based on {query} user query',
     backstory="""You are an expert at generating Postgres SQL queries based on user query and database schema.
     You validate queries before execution and ensure safe database operations.""",
     # tools=[tool],
-    max_iter=3,
-    max_execution_time=40,
+    max_iter=7,
+    verbose=True,
+    # max_execution_time=40,
     llm=azure_llm
         )
     
     task = Task(
-    description="""
+    description=f"""
     Generate a PostgreSQL query based on:
     1. User request: {query}
-    
+    2. Consider  data: {json_data} to insert the data
     2. Target table: {table}
-    3. Database schema from schema task 
+    3. {last_agent_output[-1]} Database schema from the schema_analyze_flow task
     
     Requirements:
-    1. Generate a syntactically correct PostgreSQL query
-    2. Include proper table and column names
-    3. Don't consider transaction id from the data, ignore transid column for inserting
-    3. Add appropriate WHERE clauses if needed
-    4. Ensure the query is safe and follows best practices
+    1. Generate a syntactically correct PostgreSQL query for a {query} user request
+    2. If query contains to generate bill number write insert query  to insert the data into the {table} table, 
+    if data contains multiple products then insert all the products in the table
+    3. If query contains to fetch the data from the table write select query and fetch the data from the {table} table for a given column
+    4. If the query is to update the data in the table write update query and update the data in the {table} table for a given column
+    5. Include proper table name and column names
+    6. Don't consider transaction id from the data, ignore transid column for inserting
+    7. Add appropriate WHERE clauses if needed
+    9. Ensure the query is safe and follows best practices
     
     The query will be executed by the query executor task.
     """,
@@ -275,7 +290,9 @@ def query_generator_flow(question: str, **kwargs) -> str:
     return opinion.raw
 
 def query_executor_flow(question: str, **kwargs) -> str:
+    # question = kwargs.get("sql_query")
     last_agent_output = kwargs.get("last_agent_output")
+    db_connection=kwargs.get("database_connection")
     #for debugging 
     print(f"last_agent_output: {last_agent_output}")
     agent = Agent(
@@ -286,13 +303,14 @@ def query_executor_flow(question: str, **kwargs) -> str:
     queries before execution and ensure proper error handling.""",
     tools=[DatabaseTool()],
     llm=azure_llm,
-    max_iter=3,
-    max_execution_time=40
+    verbose=True,
+    # max_iter=7,
+    # max_execution_time=40
     )
     task = Task(
-    description="""
+    description=f"""
     Execute the provided Postgres SQL query following these steps:
-    query = {{query_generator_task.output}}
+    The tool accepts two parameters query = {last_agent_output} and db_uri ={db_connection}
     1. Review the query received from the query generator
     2. Validate the query structure and safety
     3. Execute the query using the database tool
@@ -300,7 +318,7 @@ def query_executor_flow(question: str, **kwargs) -> str:
     
     Context:
 
-    - Generated Query: {{query_generator_task.output}}
+    - Generated Query: {last_agent_output}
     
     Important:
     - Ensure the query is properly formatted before execution
@@ -308,14 +326,14 @@ def query_executor_flow(question: str, **kwargs) -> str:
     - Return results in a structured format
     """,
     expected_output="""A dictionary containing:
-    1. The executed query
-    2. The query results
-    3. Any relevant execution metadata
+    1. The status of the query execution
+    2. The data as query results
+    3. message
     """,
    
     tools=[DatabaseTool()],
     agent=agent,
-    function_args={'query': last_agent_output}
+    # function_args={'query': last_agent_output, 'db_uri': db_connection}
     )
     opinion = task.execute_sync()
     return opinion.raw
@@ -333,8 +351,8 @@ def manager(team: str, query: str) -> List[str]:
                 complex customer issues effectively.""",
         llm=azure_llm,
         allow_delegation=False,
-        max_iter=3,
-        max_execution_time=40,
+        # max_iter=5,
+        # max_execution_time=60,
         verbose=True
     )
     task = Task(
@@ -347,8 +365,11 @@ def manager(team: str, query: str) -> List[str]:
                 If the query is about searching the product on the internet then choose specialist web_search_flow 
                 If the query is about searching the product image then choose specialist image_search_flow
                 If the query is about customer service then choose specialist pdf_search_flow
-                If the query is about fetching the data from database or inserting or updating the data or billing
-                then choose this series of specialist [read_data_agent_flow, schema_analyze_flow, query_generator_flow, query_executor_flow] 
+                If the query is about reading the data from json file then choose specialist read_data_agent_flow
+                If the query is about fetching the data from database or updating the data
+                then choose this series of specialist [schema_analyze_flow, query_generator_flow, query_executor_flow]
+                If the query is about generating the data or creating or inserting the data into database 
+                then choose this series of specialist [read_data_agent_flow, schema_analyze_flow, query_generator_flow, query_executor_flow]  
                 Exclude experts who are not relevant. If no specialist is needed, return an empty list.
                 Team: {team},  Query: {query}
                     """,
@@ -379,7 +400,7 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
     }
 
     @start()
-    def schedule_meeting(self):
+    def specialist_selection(self):
         print(f"list of available specialists: {self.available_specialists.keys()}")
         team = ', '.join(
             [repr(name) for name in self.available_specialists.keys()]
@@ -388,8 +409,8 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
         chosen_specialists = manager(team, query)
         self.state.chosen_specialists = chosen_specialists
 
-    @listen(schedule_meeting)
-    def conduct_meeting(self):
+    @listen(specialist_selection)
+    def agent_execution(self):
         opinions: List[str] = []
         for specialist in self.state.chosen_specialists:
             try:
@@ -401,14 +422,16 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
                         "json_path": self.state.json_path,
                         "database_connection": self.state.database_connection,
                         "table": self.state.table,
-                        "last_agent_output": opinions[-1] if opinions else None
+                        "last_agent_output": opinions if opinions else None
                     }
                 )
                 opinions.append(f"{specialist} stated: {opinion}")
-            except:
-                print(f"\nError: '{specialist}' key is not available.\n")
+            except Exception as e:
+                print(f"\nError: '{specialist}' key is not available.\n"+str(e))
                 continue
+        
         self.state.opinions = opinions
+        print(opinions, "opinions")
         return opinions
 
 if __name__ == '__main__':
@@ -416,12 +439,12 @@ if __name__ == '__main__':
     flow = CustomerServiceFlow()
     result = flow.kickoff(
         inputs = {
-        "query": question,
+        "query": "Generate bill number",
         "image_path": os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
         "pdf_path": "",
         "json_path": os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json'),
-        "database_connection":"",
-        "table": ""
+        "database_connection":"postgresql:postgres:54321//@localhost:5432/postgres",
+        "table": "product_details"
         }
     )
     print(f"\n[🤖 Final Answer]:\n{result}")
