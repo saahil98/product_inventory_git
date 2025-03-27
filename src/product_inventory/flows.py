@@ -157,6 +157,7 @@ def image_search_flow(question: str, **kwargs) -> str:
                 - Extract and format the response from the tool.
     """,
         expected_output="A list of search results based on the image provided.",
+        agent=agent
     )
     opinion = task.execute_sync()
     return opinion.raw
@@ -232,6 +233,7 @@ def schema_analyze_flow(question: str, **kwargs) -> str:
     task =Task(
     description=f"""
     Connect to the  given {db_connection} database and {table} table, get the database schema and return the schema.
+    Connect to the given database get the database schema and return the schema.{db_connection}
     """,
     expected_output="Database schema",
     agent=schema_analyzer
@@ -455,3 +457,5 @@ if __name__ == '__main__':
 # Generate bill number
 # "Update bill status as pending for the bill number d2f015b8-0d7e-420d-83a9-15c1236103f4"
 # "Generate bill number for the items in the cart",
+
+    
