@@ -243,10 +243,13 @@ def schema_analyze_flow(question: str, **kwargs) -> str:
 
 def query_generator_flow(question: str, **kwargs) -> str: 
     last_agent_output = kwargs.get("last_agent_output")
-    json_data = last_agent_output[-2]
-    json_data=json_data.split(" ")[2:]
-    json_data = " ".join(json_data)
-    print(json_data, "json_data after splitting")
+    if len(last_agent_output)>1:
+        json_data = last_agent_output[-2]
+        json_data=json_data.split(" ")[2:]
+        json_data = " ".join(json_data)
+        print(json_data, "json_data after splitting")
+    else:
+        json_data = None
     query =question
     table = kwargs.get("table")
     agent = Agent(
@@ -439,7 +442,7 @@ if __name__ == '__main__':
     flow = CustomerServiceFlow()
     result = flow.kickoff(
         inputs = {
-        "query": "Generate bill number",
+        "query": "Generate bill number for the items in the cart",
         "image_path": os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
         "pdf_path": "",
         "json_path": os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json'),
@@ -450,5 +453,9 @@ if __name__ == '__main__':
     print(f"\n[🤖 Final Answer]:\n{result}")
     print(f"\n[🤖 Flow State]:\n{flow.state}\n")
 
+# "Get the total amount for the bill number d2f015b8-0d7e-420d-83a9-15c1236103f4"
+# Generate bill number
+# "Update bill status as pending for the bill number d2f015b8-0d7e-420d-83a9-15c1236103f4"
+# "Generate bill number for the items in the cart",
 
     
