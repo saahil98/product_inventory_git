@@ -9,9 +9,10 @@ class CustomerServiceState(BaseModel):
     query: str = ""
     image_path: str = ""
     pdf_path: str = ""
-    file_path: str = ""
+    json_path: str = ""
     database_connection: str = ""
-    table: str = ""
+    table: str = "",
+    sql_query: str = ""
     chosen_specialists: List[str] = []
     opinions: List[str] = []
     response: str = ""
