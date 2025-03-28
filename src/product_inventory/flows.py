@@ -330,7 +330,7 @@ def query_executor_flow(question: str, **kwargs) -> str:
     """,
     expected_output="""A dictionary containing:
     1. The status of the query execution
-    2. The data as query results
+    2. if the query is select query then return the data, if the query is insert return the billnumbers it has inserted , if update return the updated data the updated bill numbers
     3. message
     """,
    
@@ -442,7 +442,7 @@ if __name__ == '__main__':
     flow = CustomerServiceFlow()
     result = flow.kickoff(
         inputs = {
-        "query": "Generate bill number for the items in the cart",
+        "query": "Get the total amount for the bill number d2f015b8-0d7e-420d-83a9-15c1236103f4",
         "image_path": os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
         "pdf_path": "",
         "json_path": os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json'),
@@ -451,6 +451,7 @@ if __name__ == '__main__':
         }
     )
     print(f"\n[🤖 Final Answer]:\n{result}")
+    # result = result[-1].split("{")[1:]
     print(f"\n[🤖 Flow State]:\n{flow.state}\n")
 
 # "Get the total amount for the bill number d2f015b8-0d7e-420d-83a9-15c1236103f4"
