@@ -294,6 +294,7 @@ def query_generator_flow(question: str, **kwargs) -> str:
 
 def query_executor_flow(question: str, **kwargs) -> str:
     # question = kwargs.get("sql_query")
+    query = question
     last_agent_output = kwargs.get("last_agent_output")
     db_connection=kwargs.get("database_connection")
     #for debugging 
@@ -317,7 +318,8 @@ def query_executor_flow(question: str, **kwargs) -> str:
     1. Review the query received from the query generator
     2. Validate the query structure and safety
     3. Execute the query using the database tool
-    4. Format and return the results in a clear, readable format
+    4. Format and return the results in a clear, readable format. 
+    5. Articulte the result  to answer the user query {query}
     
     Context:
 
@@ -330,7 +332,9 @@ def query_executor_flow(question: str, **kwargs) -> str:
     """,
     expected_output="""A dictionary containing:
     1. The status of the query execution
-    2. if the query is select query then return the data, if the query is insert return the billnumbers it has inserted , if update return the updated data the updated bill numbers
+    2. if the query is select query then return the data, if the query is insert return the billnumbers it has inserted , 
+      if update return the updated data the updated bill numbers. If there are multiple bill amount for same bill number sum it and provide total amount.
+      Format the result to answer for a {query} user query
     3. message
     """,
    
@@ -442,7 +446,9 @@ if __name__ == '__main__':
     flow = CustomerServiceFlow()
     result = flow.kickoff(
         inputs = {
-        "query": "Get the total amount for the bill number d2f015b8-0d7e-420d-83a9-15c1236103f4",
+            # "query": "add 5 items of LG  Direct-Cool Single Door Refrigerator to the cart",
+            "query": "Get the total amount for the bill number   c64dc64d8e6b-8fd8-4274-be63-dd67d04d",
+        # "query": "Get the total amount for the bill number d2f015b8-0d7e-420d-83a9-15c1236103f4",
         "image_path": os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
         "pdf_path": "",
         "json_path": os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json'),
@@ -454,7 +460,8 @@ if __name__ == '__main__':
     # result = result[-1].split("{")[1:]
     print(f"\n[🤖 Flow State]:\n{flow.state}\n")
 
-# "Get the total amount for the bill number d2f015b8-0d7e-420d-83a9-15c1236103f4"
+# "Get the total amount for the bill number 
+# d2f015b8-0d7e-420d-83a9-15c1236103f4"
 # Generate bill number
 # "Update bill status as pending for the bill number d2f015b8-0d7e-420d-83a9-15c1236103f4"
 # "Generate bill number for the items in the cart",
