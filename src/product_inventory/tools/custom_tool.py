@@ -71,11 +71,14 @@ class JsonReadTool(BaseTool):
                 data = file.read()
                 data = json.loads(data)
                 bill_number= str(uuid.uuid4())
+                bill_number=bill_number[:4]+bill_number[:-4]
                 for item in data['items']:
                     if 'billnumber' not in item:
                         item['billnumber'] = bill_number
                     if 'totalamount' not in item:
                         item['totalamount'] = int(item['productprice']) * int(item['productquantity'])
+                    if 'billstatus' not in item:
+                        item['billstatus'] = 'pending'
                 return data['items']
         except Exception as e:
             return f"Error reading file: {str(e)}"
