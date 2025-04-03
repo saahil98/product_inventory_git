@@ -19,3 +19,4 @@ class CustomerRequest(BaseModel):
     json_path: Optional[str] = None
     database_connection: Optional[str] = None
     table: Optional[str] = None
+
