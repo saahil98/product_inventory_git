@@ -396,6 +396,45 @@ def manager(team: str, query: str) -> List[str]:
     else:
         raise ValueError("Invalid list of specialists: {meeting.raw}")
 
+def client_outcome_architect(question: str, opinions: str) -> str:
+    agent = Agent(
+        role="Customer Response Architect",
+        goal=f"""Craft helpful json responses from specialists / agents opinions : {opinions}. 
+                follow the task description properly and generate a response
+                """,
+        backstory="Expert in customer service and synthesizing "
+                  "information to create clear, friendly replies.",
+        llm=azure_llm,
+        allow_delegation=False,
+        max_iter=2,
+        max_execution_time=30,
+        verbose=True
+    )
+ 
+    task = Task(
+        description=f"""Generate customer response from the customer question: {question} and 
+                    Classify the response in JSON format and add below attributes, follow the format below
+        
+                    Message: <generate a reponse based on the user query : {question} and also on opinion: {opinions} from last agent>
+                    Data: <reponse from the last agent refer {opinions}>
+                    Status: <success or failure> determine based on the response from the last agent 
+
+                    Rely on expert input only. Answer in 
+                    500 characters or less. If no input, say: 
+                    I'm sorry, but our team can't help you."""
+                    ,
+        expected_output=f"""
+                        A JSON object with the following attributes:
+
+                        Status: <success or failure> determine based on the response from the last agent
+                        Message: <generate a reponse based on the user query : {question} and also on opinion from last agent {opinions}>
+                        Data: <reponse from the last agent refer {opinions} for the last agent output>
+                    
+                        """,
+        agent=agent
+    )
+    outcome = task.execute_sync()
+    return outcome.raw
 
 class CustomerServiceFlow(Flow[CustomerServiceState]):
     available_specialists = {
@@ -437,13 +476,23 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
                     }
                 )
                 opinions.append(f"{specialist} stated: {opinion}")
+                self.state.opinions = opinions
             except Exception as e:
                 print(f"\nError: '{specialist}' key is not available.\n"+str(e))
                 continue
-        
-        self.state.opinions = opinions
-        print(opinions, "opinions")
-        return opinions
+
+    @listen(agent_execution)
+    def generate_client_response(self):
+        opinions = '; '.join(self.state.opinions)
+        print(f"opinions from all the agents: {opinions}")
+        print(f"qeury from the customer: {self.state.query}")
+        client_response = client_outcome_architect(self.state.query, opinions)
+        self.state.response = client_response
+        print(f" Print statement for client outcome architect: {client_response}")
+        return client_response
+    
+    
+    
 
 if __name__ == '__main__':
     question = input("[🤖 Help Desk]: Hi! How can I help you today?\n")
