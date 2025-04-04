@@ -10,7 +10,7 @@ from crewai_tools import PDFSearchTool
 from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
 	JsonReadTool, GetSchemaTool, DatabaseTool
 from pydantic_model import MeetingPlan, CustomerServiceState, Cart
-from llm import azure_llm, gemini_llm
+from llm import azure_llm, gemini_llm, openai_llm
 
 def product_list_flow(question: str, **kwargs) -> str:
     agent = Agent(
@@ -167,17 +167,22 @@ def image_search_flow(question: str, **kwargs) -> str:
     return opinion.raw
 
 def pdf_search_flow(question: str, **kwargs) -> str:
+    pdf_path = kwargs.get("pdf_path")
+    print(f"pdf_path: {pdf_path}")
+    print(f"type of pdf_path: {type(pdf_path)}")
+
+
     agent = Agent(
         role="PDF Search Specialist",
         goal=f"Search for information in the PDF document as per the user query: {question}",
         backstory="""You are a PDF search specialist who can extract information from PDF documents. 
                     You use the PDF search tool to find relevant data based on the user query.""",
-        llm=azure_llm,
         allow_delegation=False,
         max_iter=3,
         max_execution_time=40,
         verbose=True,
-        tools=[PDFSearchTool(pdf=kwargs.get("pdf_path"))],
+        llm=openai_llm,
+        tools=[PDFSearchTool(pdf=pdf_path)],
     )
     task = Task(
         description=f"""
@@ -375,12 +380,14 @@ def manager(team: str, query: str) -> List[str]:
                 If the query is about adding the product to the cart then choose specialist adding_to_cart_flow 
                 If the query is about searching the product on the internet then choose specialist web_search_flow 
                 If the query is about searching the product image then choose specialist image_search_flow
-                If the query is about customer service then choose specialist pdf_search_flow
+                If the query is about finding similarities with the image and product list then choose specialist image_search_flow and product_list_flow
+                If the query is about referring catalog, pdf document, document then choose specialist pdf_search_flow
                 If the query is about reading the data from json file then choose specialist read_data_agent_flow
                 If the query is about fetching the data from database or updating the data
                 then choose this series of specialist [schema_analyze_flow, query_generator_flow, query_executor_flow]
                 If the query is about generating the data or creating or inserting the data into database 
                 then choose this series of specialist [read_data_agent_flow, schema_analyze_flow, query_generator_flow, query_executor_flow]  
+                If the query is not related to any of the above queires then do not choose any specialist reutun an empty list.
                 Exclude experts who are not relevant. If no specialist is needed, return an empty list.
                 Team: {team},  Query: {query}
                     """,
@@ -415,20 +422,23 @@ def client_outcome_architect(question: str, opinions: str) -> str:
         description=f"""Generate customer response from the customer question: {question} and 
                     Classify the response in JSON format and add below attributes, follow the format below
         
-                    Message: <generate a reponse based on the user query : {question} and also on opinion: {opinions} from last agent>
-                    Data: <reponse from the last agent refer {opinions}>
-                    Status: <success or failure> determine based on the response from the last agent 
+                    message: <generate a reponse based on the user query : {question} and also on opinion: {opinions} from last agent>
+                    data: <reponse from the last agent refer {opinions}>
+                    status: <success or failure> determine based on the response from the last agent 
 
                     Rely on expert input only. Answer in 
-                    500 characters or less. If no input, say: 
-                    I'm sorry, but our team can't help you."""
-                    ,
+                    500 characters or less. If no input or question not related to
+                    product, search, billing or cart the say: 
+                    message : I'm sorry, the question is not relevant to our team.
+                    data : <return as blank python list> []
+                    status: failed
+                    """,
         expected_output=f"""
                         A JSON object with the following attributes:
 
-                        Status: <success or failure> determine based on the response from the last agent
-                        Message: <generate a reponse based on the user query : {question} and also on opinion from last agent {opinions}>
-                        Data: <reponse from the last agent refer {opinions} for the last agent output>
+                        status: <success or failure> determine based on the response from the last agent
+                        message: <generate a reponse based on the user query : {question} and also on opinion from last agent {opinions}>
+                        data: <reponse from the last agent refer {opinions} for the last agent output>
                     
                         """,
         agent=agent
@@ -491,8 +501,7 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
         print(f" Print statement for client outcome architect: {client_response}")
         return client_response
     
-    
-    
+
 
 if __name__ == '__main__':
     question = input("[🤖 Help Desk]: Hi! How can I help you today?\n")
