@@ -283,7 +283,7 @@ def query_generator_flow(question: str, **kwargs) -> str:
     
     Requirements:
     1. Generate a syntactically correct PostgreSQL query for a {query} user request
-    2. If query contains to generate bill number write insert query  to insert the data into the {table} table, 
+    2. If query contains to generate bill or generate invoice write insert query  to insert the data into the {table} table, 
     if data contains multiple products then insert all the products in the table
     3. If query contains to fetch the data from the table write select query and fetch the data from the {table} table for a given column
     4. If the query is to update the data in the table write update query and update the data in the {table} table for a given column
@@ -385,7 +385,7 @@ def manager(team: str, query: str) -> List[str]:
                 If the query is about reading the data from json file then choose specialist read_data_agent_flow
                 If the query is about fetching the data from database or updating the data
                 then choose this series of specialist [schema_analyze_flow, query_generator_flow, query_executor_flow]
-                If the query is about generating the data or creating or inserting the data into database 
+                If the query is about generating the bill or invoice or creating or inserting the data into database 
                 then choose this series of specialist [read_data_agent_flow, schema_analyze_flow, query_generator_flow, query_executor_flow]  
                 If the query is not related to any of the above queires then do not choose any specialist return an empty list.
                 Exclude experts who are not relevant. If no specialist is needed, return an empty list.
