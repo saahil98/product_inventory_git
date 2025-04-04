@@ -13,6 +13,7 @@ from pydantic_model import MeetingPlan, CustomerServiceState, Cart
 from llm import azure_llm, gemini_llm, openai_llm
 
 def product_list_flow(question: str, **kwargs) -> str:
+    last_agent_output = kwargs.get("last_agent_output")
     agent = Agent(
         role="Customer Receptionist",
         goal=f"""You are a front end agent you are having two tasks 
@@ -32,13 +33,15 @@ def product_list_flow(question: str, **kwargs) -> str:
         tools=[ShoppingAPITool()],
     )
     task = Task(
-        description="""The customer has asked for the list of products available in the store.  
+        description=f"""The customer has asked for the list of products available in the store.  
                 - For retrieving the product list, call the API with the following details: 
                 - Endpoint: `products` 
                 - Method: `GET` 
                 - Request Body: '' 
                 - Extract only the product list from the JSON response returned by the API and present it as a JSON object. 
-                - If the product list is empty, inform the customer that no products are currently available.""",
+                - If the product list is empty, inform the customer that no products are currently available.
+                - If the given product {last_agent_output} does not exist in the product list, inform the customer that the product is not available.
+                - If the product {last_agent_output} is available, return the product details in a structured JSON format.""",
         expected_output="""A JSON object containing the products list with product id, product name, brand, model and price""",
         agent=agent
     )
