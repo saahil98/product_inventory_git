@@ -387,7 +387,7 @@ def manager(team: str, query: str) -> List[str]:
                 then choose this series of specialist [schema_analyze_flow, query_generator_flow, query_executor_flow]
                 If the query is about generating the data or creating or inserting the data into database 
                 then choose this series of specialist [read_data_agent_flow, schema_analyze_flow, query_generator_flow, query_executor_flow]  
-                If the query is not related to any of the above queires then do not choose any specialist reutun an empty list.
+                If the query is not related to any of the above queires then do not choose any specialist return an empty list.
                 Exclude experts who are not relevant. If no specialist is needed, return an empty list.
                 Team: {team},  Query: {query}
                     """,
@@ -428,7 +428,7 @@ def client_outcome_architect(question: str, opinions: str) -> str:
 
                     Rely on expert input only. Answer in 
                     500 characters or less. If no input or question not related to
-                    product, search, billing or cart the say: 
+                    product, search, billing or cart then say: 
                     message : I'm sorry, the question is not relevant to our team.
                     data : <return as blank python list> []
                     status: failed
