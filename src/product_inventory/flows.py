@@ -278,7 +278,7 @@ def query_generator_flow(question: str, **kwargs) -> str:
     
     Requirements:
     1. Generate a syntactically correct PostgreSQL query for a {query} user request
-    2. If query contains to generate bill number write insert query  to insert the data into the {table} table, 
+    2. If query contains to generate bill or generate invoice write insert query  to insert the data into the {table} table, 
     if data contains multiple products then insert all the products in the table
     3. If query contains to fetch the data from the table write select query and fetch the data from the {table} table for a given column
     4. If the query is to update the data in the table write update query and update the data in the {table} table for a given column
@@ -375,12 +375,14 @@ def manager(team: str, query: str) -> List[str]:
                 If the query is about adding the product to the cart then choose specialist adding_to_cart_flow 
                 If the query is about searching the product on the internet then choose specialist web_search_flow 
                 If the query is about searching the product image then choose specialist image_search_flow
+                If the query is about finding similarities with the image and product list the choose specialist image_search_flow and product_list_flow
                 If the query is about customer service then choose specialist pdf_search_flow
                 If the query is about reading the data from json file then choose specialist read_data_agent_flow
                 If the query is about fetching the data from database or updating the data
                 then choose this series of specialist [schema_analyze_flow, query_generator_flow, query_executor_flow]
-                If the query is about generating the data or creating or inserting the data into database 
+                If the query is about generating the bill or invoice or creating or inserting the data into database 
                 then choose this series of specialist [read_data_agent_flow, schema_analyze_flow, query_generator_flow, query_executor_flow]  
+                If the query is not related to any of the above queires then respond should be irrelevant question
                 Exclude experts who are not relevant. If no specialist is needed, return an empty list.
                 Team: {team},  Query: {query}
                     """,
