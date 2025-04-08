@@ -25,20 +25,17 @@ def handle_customer_request(request: CustomerRequest):
         inputs = {
             "query": request.query,
             "image_path": str(request.image_path) or "",
-            # "image_path": os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
-            # "C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\src\product_inventory\data\Product Details.pdf"
-            "pdf_path": os.path.join(os.path.dirname(__file__), 'data', 'Product Details.pdf'),
-            # "json_path": str(request.json_path) or "",
-            "json_path": os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json'),
+            "pdf_path": r"C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\src\product_inventory\data\Product Details.pdf",
+            "json_path": r"C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\src\product_inventory\data\cart_output.json",
+            # "pdf_path": os.path.join(os.path.dirname(__file__), 'data', 'Product Details.pdf'),
+            # "json_path": os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json'),
             "database_connection": str(request.database_connection) or "postgresql:postgres:54321//@localhost:5432/postgres",
             "table": request.table or "product_details"
         }
 
         # Execute the flow
         result =  flow.kickoff(inputs=inputs)
-        flow_state = flow.state
-        print(result, flow_state, "resposne")
-        # result["State"] = flow_state
+        print(result, "resposne")
         return json.loads(result)
 
     except Exception as e:
@@ -73,3 +70,4 @@ curl -X POST     \
 }'
 """
  
+# uvicorn app.main:app --reload

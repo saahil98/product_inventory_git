@@ -11,6 +11,10 @@ from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
 	JsonReadTool, GetSchemaTool, DatabaseTool
 from pydantic_model import MeetingPlan, CustomerServiceState, Cart
 from llm import azure_llm, gemini_llm, openai_llm
+import json
+# from langchain.memory import ConversationBufferMemory
+# from crewai.memory import CrewMemory
+
 
 def product_list_agent(question: str, **kwargs) -> str:
     last_agent_output = kwargs.get("last_agent_output")
@@ -358,7 +362,8 @@ def query_executor_agent(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def manager(team: str, query: str) -> List[str]:
+def manager(team: str, query: str, conversation_history:str) -> List[str]:
+    # conversation_history = conversation_history
     agent = Agent(
         role="Customer Support Manager",
         goal=f"""
@@ -370,6 +375,7 @@ def manager(team: str, query: str) -> List[str]:
                 high-performing support teams and resolving 
                 complex customer issues effectively.""",
         llm=azure_llm,
+        memory = True,
         allow_delegation=False,
         # max_iter=5,
         # max_execution_time=60,
@@ -377,7 +383,7 @@ def manager(team: str, query: str) -> List[str]:
     )
     task = Task(
         description=f"""
-                Analyze the customer's Query : ' {query} ' and determine 
+                Now Analyze the customer's Query : ' {query} ' and determine 
                 which specialists from your team should attend 
                 a meeting to address the issue. Provide only list of names. 
                 If the query is about listing the products then choose specialist product_list_agent 
@@ -407,7 +413,8 @@ def manager(team: str, query: str) -> List[str]:
     else:
         raise ValueError("Invalid list of specialists: {meeting.raw}")
 
-def client_outcome_architect(question: str, opinions: str, agents:list) -> str:
+def client_outcome_architect(question: str, opinions: str, agents:list, conversation_history:str) -> str:
+    
     agent = Agent(
         role="Customer Response Architect",
         goal=f"""Craft helpful json responses from specialists / agents opinions : {opinions}. 
@@ -423,9 +430,13 @@ def client_outcome_architect(question: str, opinions: str, agents:list) -> str:
     )
  
     task = Task(
-        description=f"""Generate customer response from the customer question: {question} and 
+        description=f"""
+                    History of conversation between user and ai assistant is: '{conversation_history}' .
+                    Consider and Extract the information stored in the conversation history and use it to
+                    answer the customer query.
+                    Generate customer response from the customer question: {question} and 
                     Classify the response in JSON format and add below attributes, follow the format below
-        
+                    If multiple options are available then ask question to the user to choose the best option.
                     message: <generate a reponse based on the user query : {question} and also on opinion: {opinions} from last agent>
                     data: <reponse from the last agent refer {opinions}>
                     status: <success or failure> determine based on the response from the last agent 
@@ -439,6 +450,7 @@ def client_outcome_architect(question: str, opinions: str, agents:list) -> str:
                     chosen_agents: {agents}
                     """,
         expected_output=f"""
+                        
                         A JSON object with the following attributes:
 
                         status: <success or failure> determine based on the response from the last agent
@@ -452,6 +464,10 @@ def client_outcome_architect(question: str, opinions: str, agents:list) -> str:
     return outcome.raw
 
 class CustomerServiceFlow(Flow[CustomerServiceState]):
+
+    conversation_history = []
+    # with open(os.path.join(os.path.dirname(__file__), 'data', 'qa.json'), 'r') as f:
+    #     conversation_history= f.read()
     available_specialists = {
         'product_list_agent': product_list_agent,
         'adding_to_cart_agent': adding_to_cart_agent,
@@ -471,7 +487,7 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
             [repr(name) for name in self.available_specialists.keys()]
         )
         query = self.state.query
-        chosen_specialists = manager(team, query)
+        chosen_specialists = manager(team, query, self.conversation_history)
         self.state.chosen_specialists = chosen_specialists
 
     @listen(specialist_selection)
@@ -487,7 +503,8 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
                         "json_path": self.state.json_path,
                         "database_connection": self.state.database_connection,
                         "table": self.state.table,
-                        "last_agent_output": opinions if opinions else None
+                        "last_agent_output": opinions if opinions else None,
+                        "conversation_history": self.conversation_history
                     }
                 )
                 opinions.append(f"{specialist} stated: {opinion}")
@@ -505,9 +522,13 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
         self.state.chosen_specialists.insert(0, 'manager')
         self.state.chosen_specialists.append("outcome_narrator")
         print("Choosen specialists", self.state.chosen_specialists)
-        client_response = client_outcome_architect(self.state.query, opinions, self.state.chosen_specialists)
+        client_response = client_outcome_architect(self.state.query, opinions, self.state.chosen_specialists, self.conversation_history)
         self.state.response = client_response
-        
+        json_data = {"user": self.state.query, "AI assistant": client_response}
+        self.conversation_history.append(json.dumps(json_data))
+        print(f"conversation history: {self.conversation_history}")
+        # with open(os.path.join(os.path.dirname(__file__), 'data', 'qa.json'), 'w') as f:
+        #     f.write(self.conversation_history)
         print(f" Print statement for client outcome architect: {client_response}")
         return client_response
     
