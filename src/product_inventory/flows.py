@@ -11,8 +11,13 @@ from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
 	JsonReadTool, GetSchemaTool, DatabaseTool
 from pydantic_model import MeetingPlan, CustomerServiceState, Cart
 from llm import azure_llm, gemini_llm, openai_llm
+import json
+# from langchain.memory import ConversationBufferMemory
+# from crewai.memory import CrewMemory
 
-def product_list_flow(question: str, **kwargs) -> str:
+
+def product_list_agent(question: str, **kwargs) -> str:
+    last_agent_output = kwargs.get("last_agent_output")
     agent = Agent(
         role="Customer Receptionist",
         goal=f"""You are a front end agent you are having two tasks 
@@ -32,20 +37,22 @@ def product_list_flow(question: str, **kwargs) -> str:
         tools=[ShoppingAPITool()],
     )
     task = Task(
-        description="""The customer has asked for the list of products available in the store.  
+        description=f"""The customer has asked for the list of products available in the store.  
                 - For retrieving the product list, call the API with the following details: 
                 - Endpoint: `products` 
                 - Method: `GET` 
                 - Request Body: '' 
                 - Extract only the product list from the JSON response returned by the API and present it as a JSON object. 
-                - If the product list is empty, inform the customer that no products are currently available.""",
+                - If the product list is empty, inform the customer that no products are currently available.
+                - If the given product {last_agent_output} does not exist in the product list, inform the customer that the product is not available.
+                - If the product {last_agent_output} is available, return the product details in a structured JSON format.""",
         expected_output="""A JSON object containing the products list with product id, product name, brand, model and price""",
         agent=agent
     )
     opinion = task.execute_sync()
     return opinion.raw
 
-def adding_to_cart_flow(question: str, **kwargs) -> str:
+def adding_to_cart_agent(question: str, **kwargs) -> str:
     agent = Agent(
         role="Cart Addition Receptionist",
         goal=f"""You are a Cart addition agent you are having three tasks 
@@ -101,7 +108,7 @@ def adding_to_cart_flow(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def web_search_flow(question: str, **kwargs) -> str:
+def web_search_agent(question: str, **kwargs) -> str:
     agent = Agent(
         role="Product Search Agent",
         goal=f"""
@@ -136,7 +143,7 @@ def web_search_flow(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def image_search_flow(question: str, **kwargs) -> str:
+def image_search_agent(question: str, **kwargs) -> str:
     image_path = kwargs.get("image_path")
     agent = Agent(
         role="Product Image Search Assistant",
@@ -155,7 +162,8 @@ def image_search_flow(question: str, **kwargs) -> str:
     task = Task(
         description=f"""
                 do an image search and find what kind of product is in the image
-                prompt = Extract the object name from the image. If the object matches any item from the list ['Refrigerator', 'Washing Machine', 'Camera'], use the corresponding name. Otherwise, label the object as 'Others'
+                prompt = Extract the object name from the image. If the object matches any item from the list ['Refrigerator', 'Washing Machine', 'Camera'], use the corresponding name.
+                Otherwise, provide the object name extracted from the image'
                 image_path = {image_path}
                 - Use the image search tool with the given prompt and image path. 
                 - Extract and format the response from the tool.
@@ -166,7 +174,7 @@ def image_search_flow(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def pdf_search_flow(question: str, **kwargs) -> str:
+def pdf_search_agent(question: str, **kwargs) -> str:
     pdf_path = kwargs.get("pdf_path")
     print(f"pdf_path: {pdf_path}")
     print(f"type of pdf_path: {type(pdf_path)}")
@@ -198,7 +206,7 @@ def pdf_search_flow(question: str, **kwargs) -> str:
 
 # Added db agents
 
-def read_data_agent_flow(question: str, **kwargs) -> str:
+def read_data_agent(question: str, **kwargs) -> str:
     json_file_path = kwargs.get("json_path")
     agent = Agent(
     role="Data Reading Specialist",
@@ -223,7 +231,7 @@ def read_data_agent_flow(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def schema_analyze_flow(question: str, **kwargs) -> str:
+def schema_analyze_agent(question: str, **kwargs) -> str:
     db_connection = kwargs.get("database_connection")
     table=kwargs.get("table")
     schema_analyzer = Agent(
@@ -250,7 +258,7 @@ def schema_analyze_flow(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def query_generator_flow(question: str, **kwargs) -> str: 
+def query_generator_agent(question: str, **kwargs) -> str: 
     last_agent_output = kwargs.get("last_agent_output")
     if len(last_agent_output)>1:
         json_data = last_agent_output[-2]
@@ -279,7 +287,7 @@ def query_generator_flow(question: str, **kwargs) -> str:
     1. User request: {query}
     2. Consider  data: {json_data} to insert the data
     2. Target table: {table}
-    3. {last_agent_output[-1]} Database schema from the schema_analyze_flow task
+    3. {last_agent_output[-1]} Database schema from the schema_analyze_agent task
     
     Requirements:
     1. Generate a syntactically correct PostgreSQL query for a {query} user request
@@ -301,7 +309,7 @@ def query_generator_flow(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def query_executor_flow(question: str, **kwargs) -> str:
+def query_executor_agent(question: str, **kwargs) -> str:
     # question = kwargs.get("sql_query")
     query = question
     last_agent_output = kwargs.get("last_agent_output")
@@ -354,7 +362,8 @@ def query_executor_flow(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
-def manager(team: str, query: str) -> List[str]:
+def manager(team: str, query: str, conversation_history:str) -> List[str]:
+    # conversation_history = conversation_history
     agent = Agent(
         role="Customer Support Manager",
         goal=f"""
@@ -366,6 +375,7 @@ def manager(team: str, query: str) -> List[str]:
                 high-performing support teams and resolving 
                 complex customer issues effectively.""",
         llm=azure_llm,
+        memory = True,
         allow_delegation=False,
         # max_iter=5,
         # max_execution_time=60,
@@ -373,20 +383,20 @@ def manager(team: str, query: str) -> List[str]:
     )
     task = Task(
         description=f"""
-                Analyze the customer's Query : ' {query} ' and determine 
+                Now Analyze the customer's Query : ' {query} ' and determine 
                 which specialists from your team should attend 
                 a meeting to address the issue. Provide only list of names. 
-                If the query is about listing the products then choose specialist product_list_flow 
-                If the query is about adding the product to the cart then choose specialist adding_to_cart_flow 
-                If the query is about searching the product on the internet then choose specialist web_search_flow 
-                If the query is about searching the product image then choose specialist image_search_flow
-                If the query is about finding similarities with the image and product list then choose specialist image_search_flow and product_list_flow
-                If the query is about referring catalog, pdf document, document then choose specialist pdf_search_flow
-                If the query is about reading the data from json file then choose specialist read_data_agent_flow
+                If the query is about listing the products then choose specialist product_list_agent 
+                If the query is about adding the product to the cart then choose specialist adding_to_cart_agent 
+                If the query is about searching the product on the internet then choose specialist web_search_agent 
+                If the query is about searching the product image then choose specialist image_search_agent
+                If the query is about finding similarities with the image and product list then choose specialist image_search_agent and product_list_agent
+                If the query is about referring catalog, pdf document, document then choose specialist pdf_search_agent
+                If the query is about reading the data from json file then choose specialist read_data_agent
                 If the query is about fetching the data from database or updating the data
-                then choose this series of specialist [schema_analyze_flow, query_generator_flow, query_executor_flow]
+                then choose this series of specialist [schema_analyze_agent, query_generator_agent, query_executor_agent]
                 If the query is about generating the bill or invoice or creating or inserting the data into database 
-                then choose this series of specialist [read_data_agent_flow, schema_analyze_flow, query_generator_flow, query_executor_flow]  
+                then choose this series of specialist [read_data_agent, schema_analyze_agent, query_generator_agent, query_executor_agent]  
                 If the query is not related to any of the above queires then do not choose any specialist return an empty list.
                 Exclude experts who are not relevant. If no specialist is needed, return an empty list.
                 Team: {team},  Query: {query}
@@ -403,7 +413,8 @@ def manager(team: str, query: str) -> List[str]:
     else:
         raise ValueError("Invalid list of specialists: {meeting.raw}")
 
-def client_outcome_architect(question: str, opinions: str) -> str:
+def client_outcome_architect(question: str, opinions: str, agents:list, conversation_history:str) -> str:
+    
     agent = Agent(
         role="Customer Response Architect",
         goal=f"""Craft helpful json responses from specialists / agents opinions : {opinions}. 
@@ -419,27 +430,33 @@ def client_outcome_architect(question: str, opinions: str) -> str:
     )
  
     task = Task(
-        description=f"""Generate customer response from the customer question: {question} and 
+        description=f"""
+                    History of conversation between user and ai assistant is: '{conversation_history}' .
+                    Consider and Extract the information stored in the conversation history and use it to
+                    answer the customer query.
+                    Generate customer response from the customer question: {question} and 
                     Classify the response in JSON format and add below attributes, follow the format below
-        
+                    If multiple options are available then ask question to the user to choose the best option.
                     message: <generate a reponse based on the user query : {question} and also on opinion: {opinions} from last agent>
                     data: <reponse from the last agent refer {opinions}>
                     status: <success or failure> determine based on the response from the last agent 
-
+                    chosen_agents: {agents}
                     Rely on expert input only. Answer in 
                     500 characters or less. If no input or question not related to
                     product, search, billing or cart then say: 
                     message : I'm sorry, the question is not relevant to our team.
                     data : <return as blank python list> []
                     status: failed
+                    chosen_agents: {agents}
                     """,
         expected_output=f"""
+                        
                         A JSON object with the following attributes:
 
                         status: <success or failure> determine based on the response from the last agent
                         message: <generate a reponse based on the user query : {question} and also on opinion from last agent {opinions}>
                         data: <reponse from the last agent refer {opinions} for the last agent output>
-                    
+                        chosen_agents: {agents}
                         """,
         agent=agent
     )
@@ -447,16 +464,20 @@ def client_outcome_architect(question: str, opinions: str) -> str:
     return outcome.raw
 
 class CustomerServiceFlow(Flow[CustomerServiceState]):
+
+    conversation_history = []
+    # with open(os.path.join(os.path.dirname(__file__), 'data', 'qa.json'), 'r') as f:
+    #     conversation_history= f.read()
     available_specialists = {
-        'product_list_flow': product_list_flow,
-        'adding_to_cart_flow': adding_to_cart_flow,
-        'web_search_flow': web_search_flow,
-        'image_search_flow': image_search_flow,
-        'pdf_search_flow': pdf_search_flow,
-        'read_data_agent_flow': read_data_agent_flow,
-        'schema_analyze_flow': schema_analyze_flow,
-        'query_generator_flow': query_generator_flow,
-        'query_executor_flow': query_executor_flow
+        'product_list_agent': product_list_agent,
+        'adding_to_cart_agent': adding_to_cart_agent,
+        'web_search_agent': web_search_agent,
+        'image_search_agent': image_search_agent,
+        'pdf_search_agent': pdf_search_agent,
+        'read_data_agent': read_data_agent,
+        'schema_analyze_agent': schema_analyze_agent,
+        'query_generator_agent': query_generator_agent,
+        'query_executor_agent': query_executor_agent
     }
 
     @start()
@@ -466,7 +487,7 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
             [repr(name) for name in self.available_specialists.keys()]
         )
         query = self.state.query
-        chosen_specialists = manager(team, query)
+        chosen_specialists = manager(team, query, self.conversation_history)
         self.state.chosen_specialists = chosen_specialists
 
     @listen(specialist_selection)
@@ -482,7 +503,8 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
                         "json_path": self.state.json_path,
                         "database_connection": self.state.database_connection,
                         "table": self.state.table,
-                        "last_agent_output": opinions if opinions else None
+                        "last_agent_output": opinions if opinions else None,
+                        "conversation_history": self.conversation_history
                     }
                 )
                 opinions.append(f"{specialist} stated: {opinion}")
@@ -493,11 +515,20 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
 
     @listen(agent_execution)
     def generate_client_response(self):
+        
         opinions = '; '.join(self.state.opinions)
         print(f"opinions from all the agents: {opinions}")
         print(f"qeury from the customer: {self.state.query}")
-        client_response = client_outcome_architect(self.state.query, opinions)
+        self.state.chosen_specialists.insert(0, 'manager')
+        self.state.chosen_specialists.append("outcome_narrator")
+        print("Choosen specialists", self.state.chosen_specialists)
+        client_response = client_outcome_architect(self.state.query, opinions, self.state.chosen_specialists, self.conversation_history)
         self.state.response = client_response
+        json_data = {"user": self.state.query, "AI assistant": client_response}
+        self.conversation_history.append(json.dumps(json_data))
+        print(f"conversation history: {self.conversation_history}")
+        # with open(os.path.join(os.path.dirname(__file__), 'data', 'qa.json'), 'w') as f:
+        #     f.write(self.conversation_history)
         print(f" Print statement for client outcome architect: {client_response}")
         return client_response
     
