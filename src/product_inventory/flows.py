@@ -12,9 +12,14 @@ from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
 from pydantic_model import MeetingPlan, CustomerServiceState, Cart
 from llm import azure_llm, gemini_llm, openai_llm
 import json
+
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=r"C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\.env")
+
 # from langchain.memory import ConversationBufferMemory
 # from crewai.memory import CrewMemory
-
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY_VAIRA")
+print(os.environ["OPENAI_API_KEY"], "open ai key")
 
 def product_list_agent(question: str, **kwargs) -> str:
     last_agent_output = kwargs.get("last_agent_output")

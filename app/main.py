@@ -25,7 +25,7 @@ def handle_customer_request(request: CustomerRequest):
         inputs = {
             "query": request.query,
             "image_path": str(request.image_path) or "",
-            "pdf_path": r"C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\src\product_inventory\data\Product Details.pdf",
+            "pdf_path": r"C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\src\product_inventory\data\Product_Details.pdf",
             "json_path": r"C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\src\product_inventory\data\cart_output.json",
             # "pdf_path": os.path.join(os.path.dirname(__file__), 'data', 'Product Details.pdf'),
             # "json_path": os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json'),
