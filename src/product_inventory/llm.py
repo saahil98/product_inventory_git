@@ -10,4 +10,4 @@ gemini_llm = LLM(
     temperature=0.7
 )
 
-openai_llm = "gpt-4o"
+openai_llm = "gpt-4o-mini"

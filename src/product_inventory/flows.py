@@ -524,12 +524,15 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
         print("Choosen specialists", self.state.chosen_specialists)
         client_response = client_outcome_architect(self.state.query, opinions, self.state.chosen_specialists, self.conversation_history)
         self.state.response = client_response
-        json_data = {"user": self.state.query, "AI assistant": client_response}
+        json_data = {"user": self.state.query, "AI assistant": json.loads(client_response)["message"]}
         self.conversation_history.append(json.dumps(json_data))
-        print(f"conversation history: {self.conversation_history}")
+        client_response = json.loads(client_response)
+        client_response["conversation_history"] = self.conversation_history
+        client_response = json.dumps(client_response)
+        # print(f"conversation history: {self.conversation_history}")
         # with open(os.path.join(os.path.dirname(__file__), 'data', 'qa.json'), 'w') as f:
         #     f.write(self.conversation_history)
-        print(f" Print statement for client outcome architect: {client_response}")
+        # print(f" Print statement for client outcome architect: {client_response}")
         return client_response
     
 

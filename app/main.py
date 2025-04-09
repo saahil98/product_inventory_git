@@ -29,8 +29,8 @@ def handle_customer_request(request: CustomerRequest):
             "json_path": r"C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\src\product_inventory\data\cart_output.json",
             # "pdf_path": os.path.join(os.path.dirname(__file__), 'data', 'Product Details.pdf'),
             # "json_path": os.path.join(os.path.dirname(__file__), 'data', 'cart_output.json'),
-            "database_connection": str(request.database_connection) or "postgresql:postgres:54321//@localhost:5432/postgres",
-            "table": request.table or "product_details"
+            "database_connection": "postgresql:postgres:54321//@localhost:5432/postgres",
+            "table": "product_details"
         }
 
         # Execute the flow
