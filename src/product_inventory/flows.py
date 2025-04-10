@@ -9,12 +9,17 @@ import os
 from crewai_tools import PDFSearchTool
 from tools.custom_tool import ShoppingAPITool, SearchWebTool, SearchImageTool, \
 	JsonReadTool, GetSchemaTool, DatabaseTool
-from pydantic_model import MeetingPlan, CustomerServiceState, Cart
+from pydantic_model import AgentSelection, CustomerServiceState, Cart
 from llm import azure_llm, gemini_llm, openai_llm
 import json
+
+from dotenv import load_dotenv
+load_dotenv(dotenv_path=r"C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\.env")
+
 # from langchain.memory import ConversationBufferMemory
 # from crewai.memory import CrewMemory
-
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY_VAIRA")
+print(os.environ["OPENAI_API_KEY"], "open ai key")
 
 def product_list_agent(question: str, **kwargs) -> str:
     last_agent_output = kwargs.get("last_agent_output")
@@ -147,7 +152,7 @@ def image_search_agent(question: str, **kwargs) -> str:
     image_path = kwargs.get("image_path")
     agent = Agent(
         role="Product Image Search Assistant",
-        goal=f"""You are a specialized agent capable of performing image-based product searches.
+        goal=f"""You are a specialized agent capable of Identifying/Finding product from the image.
             Given an image and a prompt from task description, use the image search tool to identify the product
             and return the search results to the user.
             The tool accepts two parameters {question} and {image_path}""",
@@ -383,40 +388,40 @@ def manager(team: str, query: str, conversation_history:str) -> List[str]:
     )
     task = Task(
         description=f"""
-                Now Analyze the customer's Query : ' {query} ' and determine 
-                which specialists from your team should attend 
-                a meeting to address the issue. Provide only list of names. 
-                If the query is about listing the products then choose specialist product_list_agent 
-                If the query is about adding the product to the cart then choose specialist adding_to_cart_agent 
-                If the query is about searching the product on the internet then choose specialist web_search_agent 
-                If the query is about searching the product image then choose specialist image_search_agent
-                If the query is about finding similarities with the image and product list then choose specialist image_search_agent and product_list_agent
-                If the query is about referring catalog, pdf document, document then choose specialist pdf_search_agent
-                If the query is about reading the data from json file then choose specialist read_data_agent
+                This is the coversation between the user and the AI assistant:
+                {conversation_history}
+                Rephrase the customer query based on the latest conversation in conversation history.
+                Create a rephrased query for the user query : {query}
+                Now Analyze the rephrased  Query and determine 
+                which agents from your specialists should be delegated to handle the query. 
                 If the query is about fetching the data from database or updating the data
                 then choose this series of specialist [schema_analyze_agent, query_generator_agent, query_executor_agent]
                 If the query is about generating the bill or invoice or creating or inserting the data into database 
-                then choose this series of specialist [read_data_agent, schema_analyze_agent, query_generator_agent, query_executor_agent]  
-                If the query is not related to any of the above queires then do not choose any specialist return an empty list.
+                then choose this series of specialist [read_data_agent, schema_analyze_agent, query_generator_agent, query_executor_agent]
+                If the rephrased query is not related to any of the specialists then do not choose any specialist return an empty list.
                 Exclude experts who are not relevant. If no specialist is needed, return an empty list.
-                Team: {team},  Query: {query}
+                Available Specialists: {team},  Query: {query}
                     """,
-        expected_output="List of names of relevant experts from "
-                        "the team or an empty list if no expert is needed.",
+        expected_output="Return in json format with two attributes: rephrased_query and chosen_specialists. " 
+        "chosen_specialists is a list of names of relevant experts from the team or an empty list if no expert is needed. " ,
         agent=agent,
-        output_pydantic=MeetingPlan,
+        output_pydantic=AgentSelection,
     )
-    meeting = task.execute_sync()
-    if meeting.pydantic:
-        meeting.pydantic = cast(MeetingPlan, meeting.pydantic)
-        return meeting.pydantic.chosen_specialists
-    else:
-        raise ValueError("Invalid list of specialists: {meeting.raw}")
+    specialist_task = task.execute_sync()
 
-def client_outcome_architect(question: str, opinions: str, agents:list, conversation_history:str) -> str:
+    print(specialist_task, "rephrased query")
+    # print(specialist_task.chosen_specialists, "chosen_specialists")
+
+    if specialist_task.pydantic:
+        specialist_task.pydantic = cast(AgentSelection, specialist_task.pydantic)
+        return specialist_task.pydantic.chosen_specialists, specialist_task.pydantic.query
+    else:
+        raise ValueError("Invalid list of specialists: {specialist_task.raw}")
+
+def outcome_narrator(question: str, opinions: str, agents:list, conversation_history:str) -> str:
     
     agent = Agent(
-        role="Customer Response Architect",
+        role="Outcome narrator",
         goal=f"""Craft helpful json responses from specialists / agents opinions : {opinions}. 
                 follow the task description properly and generate a response
                 """,
@@ -432,18 +437,21 @@ def client_outcome_architect(question: str, opinions: str, agents:list, conversa
     task = Task(
         description=f"""
                     History of conversation between user and ai assistant is: '{conversation_history}' .
-                    Consider and Extract the information stored in the conversation history and use it to
-                    answer the customer query.
+                    Consider and Extract the latest conversation from the conversation history and use it to
+                    answer the customer query. 
                     Generate customer response from the customer question: {question} and 
                     Classify the response in JSON format and add below attributes, follow the format below
+                    If multiple agents are selected then consider both the agents output and generate a response based on the output from both the agents.
                     If multiple options are available then ask question to the user to choose the best option.
+                    If specialists returned empty data, then format answer to convey  that no data is present with that specialist
                     message: <generate a reponse based on the user query : {question} and also on opinion: {opinions} from last agent>
                     data: <reponse from the last agent refer {opinions}>
                     status: <success or failure> determine based on the response from the last agent 
                     chosen_agents: {agents}
                     Rely on expert input only. Answer in 
-                    500 characters or less. If no input or question not related to
-                    product, search, billing or cart then say: 
+                    500 characters or less. 
+                    If the specialists are not able to answer the question then
+                    return the below message: 
                     message : I'm sorry, the question is not relevant to our team.
                     data : <return as blank python list> []
                     status: failed
@@ -488,7 +496,8 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
         )
         query = self.state.query
         chosen_specialists = manager(team, query, self.conversation_history)
-        self.state.chosen_specialists = chosen_specialists
+        self.state.chosen_specialists, self.state.query = chosen_specialists
+
 
     @listen(specialist_selection)
     def agent_execution(self):
@@ -522,14 +531,17 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
         self.state.chosen_specialists.insert(0, 'manager')
         self.state.chosen_specialists.append("outcome_narrator")
         print("Choosen specialists", self.state.chosen_specialists)
-        client_response = client_outcome_architect(self.state.query, opinions, self.state.chosen_specialists, self.conversation_history)
+        client_response = outcome_narrator(self.state.query, opinions, self.state.chosen_specialists, self.conversation_history)
         self.state.response = client_response
-        json_data = {"user": self.state.query, "AI assistant": client_response}
+        json_data = {"user": self.state.query, "AI assistant": json.loads(client_response)["message"]}
         self.conversation_history.append(json.dumps(json_data))
-        print(f"conversation history: {self.conversation_history}")
+        client_response = json.loads(client_response)
+        # client_response["conversation_history"] = self.conversation_history
+        client_response = json.dumps(client_response)
+        # print(f"conversation history: {self.conversation_history}")
         # with open(os.path.join(os.path.dirname(__file__), 'data', 'qa.json'), 'w') as f:
         #     f.write(self.conversation_history)
-        print(f" Print statement for client outcome architect: {client_response}")
+        # print(f" Print statement for client outcome architect: {client_response}")
         return client_response
     
 
