@@ -2,8 +2,9 @@ from pydantic import BaseModel
 from typing import List
 
 
-class MeetingPlan(BaseModel):
+class AgentSelection(BaseModel):
     chosen_specialists: List[str] = []
+    query: str = ""
 
 class CustomerServiceState(BaseModel):
     query: str = ""
