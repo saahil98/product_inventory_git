@@ -450,7 +450,7 @@ def outcome_narrator(question: str, opinions: str, agents:list, conversation_his
                     chosen_agents: {agents}
                     Rely on expert input only. Answer in 
                     500 characters or less. 
-                    If the specialists are not able to answer the question then
+                    If the question is not relavant to any specialist then
                     return the below message: 
                     message : I'm sorry, the question is not relevant to our team.
                     data : <return as blank python list> []
