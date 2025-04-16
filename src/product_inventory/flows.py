@@ -254,8 +254,8 @@ def schema_analyze_agent(question: str, **kwargs) -> str:
     
     task =Task(
     description=f"""
-    Connect to the  given {db_connection} database and {table} table, get the database schema and return the schema.
-    Connect to the given database get the database schema and return the schema.{db_connection}
+    1. Connect to the  given {db_connection} database and {table} table
+    2. Generate schema.
     """,
     expected_output="Database schema",
     agent=schema_analyzer
@@ -263,8 +263,10 @@ def schema_analyze_agent(question: str, **kwargs) -> str:
     opinion = task.execute_sync()
     return opinion.raw
 
+
 def query_generator_agent(question: str, **kwargs) -> str: 
     last_agent_output = kwargs.get("last_agent_output")
+    db_connection = kwargs.get("database_connection")
     if len(last_agent_output)>1:
         json_data = last_agent_output[-2]
         json_data=json_data.split(" ")[2:]
@@ -291,9 +293,10 @@ def query_generator_agent(question: str, **kwargs) -> str:
     Generate a PostgreSQL query based on:
     1. User request: {query}
     2. Consider  data: {json_data} to insert the data
-    2. Target table: {table}
-    3. {last_agent_output[-1]} Database schema from the schema_analyze_agent task
-    
+    3. Target table: {table}
+    4. {last_agent_output[-1]} Database schema from the schema_analyze_agent task
+
+
     Requirements:
     1. Generate a syntactically correct PostgreSQL query for a {query} user request
     2. If query contains to generate bill or generate invoice write insert query  to insert the data into the {table} table, 
@@ -303,7 +306,7 @@ def query_generator_agent(question: str, **kwargs) -> str:
     5. Include proper table name and column names
     6. Don't consider transaction id from the data, ignore transid column for inserting
     7. Add appropriate WHERE clauses if needed
-    9. Ensure the query is safe and follows best practices
+    8. Ensure the query is safe and follows best practices
     
     The query will be executed by the query executor task.
     """,
@@ -394,10 +397,11 @@ def manager(team: str, query: str, conversation_history:str) -> List[str]:
                 Create a rephrased query for the user query : {query}
                 Now Analyze the rephrased  Query and determine 
                 which agents from your specialists should be delegated to handle the query. 
-                If the query is about fetching the data from database or updating the data
-                then choose this series of specialist [schema_analyze_agent, query_generator_agent, query_executor_agent]
                 If the query is about generating the bill or invoice or creating or inserting the data into database 
-                then choose this series of specialist [read_data_agent, schema_analyze_agent, query_generator_agent, query_executor_agent]
+                then choose this series of specialist [read_data_agent,  schema_analyze_agent, query_generator_agent, query_executor_agent]
+                If the query is about fetching the data from database or updating the data
+                then choose this series of specialist [schema_analyze_agent, query_generator_agent, query_executor_agent]. Do not insert the data into database.
+                
                 If the rephrased query is not related to any of the specialists then do not choose any specialist return an empty list.
                 Exclude experts who are not relevant. If no specialist is needed, return an empty list.
                 Available Specialists: {team},  Query: {query}
@@ -415,7 +419,7 @@ def manager(team: str, query: str, conversation_history:str) -> List[str]:
     if specialist_task.pydantic:
         specialist_task.pydantic = cast(AgentSelection, specialist_task.pydantic)
         return specialist_task.pydantic.chosen_specialists, specialist_task.pydantic.query
-    else:
+    else: 
         raise ValueError("Invalid list of specialists: {specialist_task.raw}")
 
 def outcome_narrator(question: str, opinions: str, agents:list, conversation_history:str) -> str:
@@ -477,9 +481,11 @@ class CustomerServiceFlow(Flow[CustomerServiceState]):
     # with open(os.path.join(os.path.dirname(__file__), 'data', 'qa.json'), 'r') as f:
     #     conversation_history= f.read()
     available_specialists = {
-        'product_list_agent': product_list_agent,
+        'product_list_agent': {"agent": product_list_agent, "description": "List the products"},
         'adding_to_cart_agent': adding_to_cart_agent,
+        # 'metadata_generator_agent': metadata_generator_agent,
         'web_search_agent': web_search_agent,
+        
         'image_search_agent': image_search_agent,
         'pdf_search_agent': pdf_search_agent,
         'read_data_agent': read_data_agent,

@@ -94,10 +94,8 @@ class GetSchemaTool(BaseTool):
             engine = create_engine(db_uri)
             with engine.connect() as conn:
                 schema_query = """
-                    SELECT column_name, data_type, character_maximum_length, is_nullable
-                    FROM information_schema.columns
-                    WHERE table_name = :table_name
-                    ORDER BY ordinal_position;
+                    SELECT schema_details from metadata
+                    WHERE tablename = :table_name;
                 """
                 result = conn.execute(text(schema_query), {"table_name": table_name})
                 print(result, "schema result")
@@ -105,10 +103,10 @@ class GetSchemaTool(BaseTool):
                 
                 schema_info = []
                 for col in schema:
-                    col_info = f"{col[0]} {col[1]}"
-                    if col[2]:
-                        col_info += f"({col[2]})"
-                    col_info += f" {'NULL' if col[3] == 'YES' else 'NOT NULL'}"
+                    col_info = f"{col[0]}"
+                    # if col[2]:
+                    #     col_info += f"({col[2]})"
+                    # col_info += f" {'NULL' if col[3] == 'YES' else 'NOT NULL'}"
                     schema_info.append(col_info)
                 
                 return "\n".join(schema_info)
