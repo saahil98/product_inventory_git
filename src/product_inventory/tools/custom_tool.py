@@ -8,9 +8,11 @@ import json
 import os, requests
 import PIL.Image
 from dotenv import load_dotenv
+import uuid
 
 dotenv_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../../.env'))
 load_dotenv(dotenv_path=dotenv_path)
+# print(dotenv_path)
 
 api_key = os.getenv("GOOGLEKEY")
 cse_id = os.getenv("CSEID")
@@ -67,7 +69,17 @@ class JsonReadTool(BaseTool):
             # file_path = r"C:\Users\priyanka.b.chila\Documents\GenAIML\Downloads\product_details_data.json"
             with open(file_path, 'r') as file:
                 data = file.read()
-                return json.loads(data)
+                data = json.loads(data)
+                bill_number= str(uuid.uuid4())
+                # bill_number=bill_number[:4]+'-'+bill_number[-4:]
+                for item in data['items']:
+                    if 'billnumber' not in item:
+                        item['billnumber'] = bill_number
+                    if 'totalamount' not in item:
+                        item['totalamount'] = int(item['productprice']) * int(item['productquantity'])
+                    if 'billstatus' not in item:
+                        item['billstatus'] = 'pending'
+                return data['items']
         except Exception as e:
             return f"Error reading file: {str(e)}"
 
@@ -78,7 +90,7 @@ class GetSchemaTool(BaseTool):
 
     def _run(self, table_name: str, db_uri:str) -> str:
         try:
-            # db_uri = 'postgresql://postgres:54321@127.0.0.1:5432/postgres'
+            db_uri = 'postgresql://postgres:54321@127.0.0.1:5432/postgres'
             engine = create_engine(db_uri)
             with engine.connect() as conn:
                 schema_query = """
@@ -141,22 +153,34 @@ class DatabaseTool(BaseTool):
         try:
             # Sanitize and validate the query
             sanitized_query = self._sanitize_query(query)
+
             # self._validate_query(sanitized_query)
 
             # Create database connection using environment variables
             engine = create_engine(db_uri)
             
             with engine.connect() as conn:
-                result = conn.execute(text(sanitized_query))
-                if 'insert' or 'update' in sanitized_query.lower():
-                    conn.commit()
-                    if 'insert' in sanitized_query.lower():
-                        message = "Data inserted successfully"
-                    
-                        return {"status": "success", "data": [], "message": message}
-                data = result.fetchall()
-                return {"status": "success", "data": list(data), "message": "Data retrieved successfully"}
 
+                result = conn.execute(text(sanitized_query))
+                # data= result.fetchall()
+                if query.lower().startswith("insert"):
+                    conn.commit()
+                    inserted_id = ""  # Fetch last inserted ID (if applicable)
+                    message = f"Data inserted successfully with ID {inserted_id}" if inserted_id else "Data inserted successfully"
+                    return {"status": "success", "data": [], "message": message}
+            
+                elif query.lower().startswith("update"):
+                    conn.commit()
+                    message = f"{result.rowcount} record(s) updated"
+                    return {"status": "success", "data": [], "message": message}
+                
+                elif query.lower().startswith("select"):
+                    data = result.fetchall()
+                    return {"status": "success", "data": list(data), "message": "Data retrieved successfully"}
+                
+                else:
+                    return {"status": "error", "data": [], "message": "Not a valid SQL query"}
+            
         except ValueError as ve:
             return {
                 "status": "error",
@@ -169,3 +193,12 @@ class DatabaseTool(BaseTool):
                 "data": [],
                 "message": f"Database operation error: {str(e)}"
             }
+
+# obj_1 = DatabaseTool()
+# result = obj_1._run("select * from product_details", "postgresql://postgres:54321@127.0.0.1:5432/postgres")
+# print(result, "result of the query")
+
+
+# obj_1 = JsonReadTool()
+# result = obj_1._run(r"C:\Users\priyanka.b.chila\Documents\product_inventory_flow\product_inventory_git\src\product_inventory\data\cart_output.json")
+# print(result, "result of the query")

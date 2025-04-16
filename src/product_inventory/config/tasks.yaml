@@ -1,22 +1,13 @@
-# manager_agent_task:
-#   description: >
-#     You are a store manager, you are responsible for delegating task to the agents
-#     based on the query given by the user delegate task only to the appropriate agent
-#     take the outpur from the agent and return back as a final answer.
-#     classify the user query based on the follwing criteria and delegate the task to the appropriate agent
-#     If the query is about lisiting the products or adding to cart then delegate the task to front_end_agent
-#     If the query is about searching the product on the internet then delegate the task to product_search_agent
-#     If the query is about searching the product image then delegate the task to image_search_agent
-#     If the query is about customer service then delegate the task to customer_service_representative_agent
-#     If the query is about reading the data from json file then delegate the task to read_data_agent
-#     If the query is about getting the database schema then delegate the task to database_schema_analyzer
-#     If the query is about generating the database query then delegate the task to database_query_generator
-#     If the query is about executing the database query then delegate the task to database_query_executor
-#     do not execute all tasks sequentially only execute the tasks based on the query and return the output
-#     if the query is not related to other agents do not delegate task to them only delegate task to approprite agent
-#   expected_output: >
-#     The final output from the appropriate agent based on the user query
-#   agent: manager_agent
+manager_agent_task:
+  description: >
+    Analyze the customer's ticket and determine 
+    which specialists from your team should attend 
+    a meeting to address the issue. Provide only a 
+    list of names. Exclude experts who are not relevant.
+    Team: {team},  Query: {query}
+  expected_output: >
+    List of names of relevant experts from the team or an empty list if no expert is needed.
+  agent: manager_agent
 
 list_products_task:
   description: >
@@ -75,7 +66,7 @@ image_search_task:
     A search result in JSON format with 'ProductName' as key
   agent: image_search_agent
 
-customer_service_task:
+pdf_search_task:
   description: >
     A Customer / Manager Agent just reached out with a product-related inquiry: {query} 
     Search through the provided PDF knowledge base to find the most accurate and relevant information.
@@ -84,7 +75,7 @@ customer_service_task:
     A precise and fact-based response to the customer's inquiry, strictly sourced from the PDF knowledge base. 
     The response should clearly address the customer's question, referencing the relevant sections of the documents. 
     Ensure the answer is complete, easy to understand, and maintains a professional yet friendly tone.
-  agent: customer_service_representative_agent
+  agent: pdf_search_agent
 
 read_data_task:
   description: >
@@ -106,7 +97,7 @@ schema_task:
 query_generator_task:
   description: >
     Generate a PostgreSQL query based on:
-    1. User request -  {user_query}
+    1. User request -  {query}
     2. Target table - {table}
     3. Use columns and values from json data to select the data or insert the data and to update the data
     4. Database schema from schema task

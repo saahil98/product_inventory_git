@@ -22,12 +22,11 @@ def run():
     Run the crew.
     """
     inputs = {
-        'query': "show me the product list using front end agent",
-        'path': os.path.join(os.path.dirname(__file__), 'data', 'image.jpg'),
-        "file_path": r"C:\Users\priyanka.b.chila\Documents\GenAIML\Downloads\product_details.json",
-        "database_connection":r"postgresql:postgres:54321//@localhost:5432/postgres",
-        "user_query": "Fetch the data from table",
-        "table": "product_details"
+        'query': "do market research for LG Refrigerator ",
+        'path': "",
+        "file_path": "",
+        "database_connection":"",
+        "table": ""
     }
     
     try:
